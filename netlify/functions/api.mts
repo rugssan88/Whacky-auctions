@@ -27,7 +27,7 @@ async function auctionDto(a:any, userId?:string|null, includeBids=false, adminVi
     inspectionNote:a.inspection_note,collectionNote:a.collection_note,storageFeeNote:a.storage_fee_note,auctioneerName:a.auctioneer_name,
     rulesPublishedAt:a.rules_published_at,currentBidCents:high?Number(high.amount_cents):null,highBidderId:high?.user_id||null,
     bidCount:bidCount[0]?.c||0,watched,
-    images:images.map((x:any)=>({id:x.id,url:`/api/images/${encodeURIComponent(x.blob_key)}`,alt:x.alt_text}))
+    images:images.map((x:any)=>({id:x.id,url:`/api/images/${encodeURIComponent(x.blob_key)}`,alt:x.alt_text,sortOrder:Number(x.sort_order)}))
   };
   if (adminView) payload.reservePriceCents = a.reserve_price_cents == null ? null : Number(a.reserve_price_cents);
   if (userId && high?.user_id===userId && a.status==='closed') {
@@ -250,6 +250,57 @@ async function handle(req:Request) {
       const start=new Date(b.startAt);const end=new Date(b.endAt);if(!(start<end))return fail('Auction end time must be after start time.');const reserve=b.reservePriceCents==null||b.reservePriceCents===''?null:asCents(b.reservePriceCents);
       await db.sql`UPDATE auctions SET title=${clean(b.title,150)},category=${clean(b.category,80)||'General'},description=${clean(b.description,12000)},condition_text=${clean(b.conditionText,5000)},start_at=${start.toISOString()},scheduled_end_at=${end.toISOString()},current_end_at=CASE WHEN status='draft' THEN ${end.toISOString()} ELSE current_end_at END,soft_close_seconds=${Math.max(30,Math.min(900,Number(b.softCloseSeconds||120)))},opening_bid_cents=${asCents(b.openingBidCents)},bid_increment_cents=${asCents(b.bidIncrementCents)},reserve_price_cents=${reserve},reserve_disclosed=${b.reserveDisclosed!==false},buyer_premium_percent=${Number(b.buyerPremiumPercent||0)},vat_note=${clean(b.vatNote,500)},payment_deadline_hours=${Math.max(1,Number(b.paymentDeadlineHours||24))},inspection_note=${clean(b.inspectionNote,1000)},collection_note=${clean(b.collectionNote,1000)},storage_fee_note=${clean(b.storageFeeNote,1000)},auctioneer_name=${clean(b.auctioneerName,160)||null},updated_at=NOW() WHERE id=${aid}`;
       await audit(admin.id,'update_auction','auction',aid,{},req);return ok();
+    }
+    if(method==='POST'&&parts[1]==='auctions'&&parts[2]&&parts[3]==='duplicate') {
+      const sourceId=parts[2];
+      const source=(await db.sql`SELECT * FROM auctions WHERE id=${sourceId} LIMIT 1`)[0];
+      if(!source)return fail('Auction not found.',404);
+      if(source.status!=='draft')return fail('Only draft auctions can be duplicated.');
+      const aid=id();
+      const title=clean(`${source.title} (copy)`,150);
+      const slug=`${slugify(title)}-${aid.slice(0,8)}`;
+      await db.sql`INSERT INTO auctions(id,slug,title,category,description,condition_text,status,start_at,scheduled_end_at,current_end_at,soft_close_seconds,opening_bid_cents,bid_increment_cents,reserve_price_cents,reserve_disclosed,buyer_premium_percent,vat_note,payment_deadline_hours,inspection_note,collection_note,storage_fee_note,auctioneer_name,rules_published_at,created_by)
+                   VALUES(${aid},${slug},${title},${source.category},${source.description},${source.condition_text},'draft',${source.start_at},${source.scheduled_end_at},${source.scheduled_end_at},${source.soft_close_seconds},${source.opening_bid_cents},${source.bid_increment_cents},${source.reserve_price_cents},${source.reserve_disclosed},${source.buyer_premium_percent},${source.vat_note},${source.payment_deadline_hours},${source.inspection_note},${source.collection_note},${source.storage_fee_note},${source.auctioneer_name},NULL,${admin.id})`;
+      const sourceImages=await db.sql`SELECT * FROM auction_images WHERE auction_id=${sourceId} ORDER BY sort_order,id`;
+      const copiedKeys:string[]=[];
+      try{
+        for(const image of sourceImages){
+          const data=await imageStore.get(image.blob_key,{type:'arrayBuffer'});
+          if(!data)continue;
+          const imageId=id();
+          const ext=(String(image.blob_key).split('.').pop()||'img').replace(/[^a-z0-9]/gi,'').toLowerCase();
+          const key=`${aid}/${imageId}.${ext}`;
+          await imageStore.set(key,data,{metadata:{contentType:image.content_type}});
+          copiedKeys.push(key);
+          await db.sql`INSERT INTO auction_images(id,auction_id,blob_key,content_type,alt_text,sort_order) VALUES(${imageId},${aid},${key},${image.content_type},${image.alt_text},${image.sort_order})`;
+        }
+      }catch(error){
+        for(const key of copiedKeys)await imageStore.delete(key).catch(()=>{});
+        await db.sql`DELETE FROM auctions WHERE id=${aid}`;
+        throw error;
+      }
+      await audit(admin.id,'duplicate_auction','auction',aid,{sourceAuctionId:sourceId,copiedImages:copiedKeys.length},req);
+      const created=(await db.sql`SELECT * FROM auctions WHERE id=${aid}`)[0];
+      return ok({auctionId:aid,auction:await auctionDto(created,admin.id,false,true)},201);
+    }
+    if(method==='POST'&&parts[1]==='auctions'&&parts[2]&&parts[3]==='images'&&parts[4]==='reorder') {
+      const aid=parts[2];
+      const auction=(await db.sql`SELECT id FROM auctions WHERE id=${aid} LIMIT 1`)[0];
+      if(!auction)return fail('Auction not found.',404);
+      const body=await req.json();
+      const imageIds=Array.isArray(body.imageIds)?body.imageIds.map((x:any)=>String(x)):[];
+      if(new Set(imageIds).size!==imageIds.length)return fail('Photo order contains duplicate image IDs.');
+      const existing=await db.sql`SELECT id FROM auction_images WHERE auction_id=${aid} ORDER BY sort_order,id`;
+      const existingIds=existing.map((x:any)=>String(x.id));
+      if(imageIds.length!==existingIds.length||imageIds.some((x:string)=>!existingIds.includes(x)))return fail('Photo order must include every current auction image exactly once.');
+      const client=await db.pool.connect();
+      try{
+        await client.query('BEGIN');
+        for(let i=0;i<imageIds.length;i++)await client.query('UPDATE auction_images SET sort_order=$1 WHERE id=$2 AND auction_id=$3',[i,imageIds[i],aid]);
+        await client.query('COMMIT');
+      }catch(error){await client.query('ROLLBACK');throw error}finally{client.release()}
+      await audit(admin.id,'reorder_images','auction',aid,{imageIds},req);
+      return ok();
     }
     if(method==='POST'&&parts[1]==='auctions'&&parts[2]&&parts[3]==='publish') {
       const settings=await getSettings();
