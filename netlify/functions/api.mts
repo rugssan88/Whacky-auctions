@@ -1,0 +1,310 @@
+import type { Config } from '@netlify/functions';
+import {
+  db,imageStore,json,ok,fail,id,slugify,hashPassword,verifyPassword,getUser,requireUser,requireAdmin,
+  createSession,deleteSession,clearSessionCookie,getSettings,setSetting,audit,ensureBootstrapAdmin,closeExpiredAuctions,
+  safeUser,asCents,isAdult,getClientIp,sha256
+} from './lib/core.mts';
+import { createCheckout } from './lib/payment-gateway.mts';
+
+const clean = (s:any,max=5000) => String(s ?? '').trim().slice(0,max);
+const money = (v:any) => Number(v ?? 0);
+
+async function auctionDto(a:any, userId?:string|null, includeBids=false, adminView=false) {
+  const images = await db.sql`SELECT id,blob_key,alt_text,sort_order FROM auction_images WHERE auction_id=${a.id} ORDER BY sort_order,id`;
+  const highRows = await db.sql`SELECT b.id,b.amount_cents,b.user_id,b.created_at,u.first_name,u.last_name
+                                FROM bids b JOIN users u ON u.id=b.user_id
+                                WHERE b.auction_id=${a.id} AND b.retracted_at IS NULL
+                                ORDER BY b.amount_cents DESC,b.created_at ASC LIMIT 1`;
+  const high = highRows[0] || null;
+  const bidCount = await db.sql`SELECT COUNT(*)::int AS c FROM bids WHERE auction_id=${a.id} AND retracted_at IS NULL`;
+  const watched = userId ? (await db.sql`SELECT 1 FROM watchlist WHERE user_id=${userId} AND auction_id=${a.id} LIMIT 1`).length>0 : false;
+  const payload:any = {
+    id:a.id,slug:a.slug,title:a.title,category:a.category,description:a.description,condition:a.condition_text,status:a.status,
+    startAt:a.start_at,scheduledEndAt:a.scheduled_end_at,currentEndAt:a.current_end_at,softCloseSeconds:a.soft_close_seconds,
+    openingBidCents:Number(a.opening_bid_cents),bidIncrementCents:Number(a.bid_increment_cents),
+    reserveDisclosed:a.reserve_disclosed,reserveMet:a.reserve_price_cents==null ? true : (!!high && Number(high.amount_cents)>=Number(a.reserve_price_cents)),
+    buyerPremiumPercent:Number(a.buyer_premium_percent),vatNote:a.vat_note,paymentDeadlineHours:a.payment_deadline_hours,
+    inspectionNote:a.inspection_note,collectionNote:a.collection_note,storageFeeNote:a.storage_fee_note,auctioneerName:a.auctioneer_name,
+    rulesPublishedAt:a.rules_published_at,currentBidCents:high?Number(high.amount_cents):null,highBidderId:high?.user_id||null,
+    bidCount:bidCount[0]?.c||0,watched,
+    images:images.map((x:any)=>({id:x.id,url:`/api/images/${encodeURIComponent(x.blob_key)}`,alt:x.alt_text}))
+  };
+  if (adminView) payload.reservePriceCents = a.reserve_price_cents == null ? null : Number(a.reserve_price_cents);
+  if (userId && high?.user_id===userId && a.status==='closed') {
+    const orders = await db.sql`SELECT status,total_cents,hammer_price_cents,buyer_premium_cents,payment_reference,paid_at
+                                FROM orders WHERE auction_id=${a.id} AND user_id=${userId} LIMIT 1`;
+    if (orders[0]) payload.order = {
+      status: orders[0].status,
+      totalCents: Number(orders[0].total_cents),
+      hammerPriceCents: Number(orders[0].hammer_price_cents),
+      buyerPremiumCents: Number(orders[0].buyer_premium_cents),
+      paymentReference: orders[0].payment_reference,
+      paidAt: orders[0].paid_at
+    };
+  }
+  if (includeBids) {
+    const bids = await db.sql`SELECT b.id,b.amount_cents,b.user_id,b.created_at,b.retracted_at,u.first_name,u.last_name
+                              FROM bids b JOIN users u ON u.id=b.user_id WHERE b.auction_id=${a.id}
+                              ORDER BY b.created_at DESC LIMIT 100`;
+    payload.bids = bids.map((b:any)=>({id:b.id,amountCents:Number(b.amount_cents),createdAt:b.created_at,retractedAt:b.retracted_at,bidder:`${b.first_name} ${b.last_name.slice(0,1)}.`,isMine:!!userId&&b.user_id===userId}));
+  }
+  return payload;
+}
+
+async function publicAuctions(userId?:string|null) {
+  await closeExpiredAuctions();
+  const rows = await db.sql`SELECT * FROM auctions WHERE status IN ('scheduled','live','closed','unsold') ORDER BY CASE status WHEN 'live' THEN 0 WHEN 'scheduled' THEN 1 ELSE 2 END,current_end_at ASC,created_at DESC`;
+  const out=[]; for (const a of rows) out.push(await auctionDto(a,userId,false)); return out;
+}
+
+async function handle(req:Request) {
+  await ensureBootstrapAdmin();
+  const url = new URL(req.url);
+  const path = url.pathname.replace(/^\/api\/?/,'');
+  const parts = path.split('/').filter(Boolean).map(decodeURIComponent);
+  const method = req.method.toUpperCase();
+  const user = await getUser(req);
+
+  if (method==='GET' && parts[0]==='health') return ok({service:'Whacky Auctions',time:new Date().toISOString()});
+  if (method==='POST' && parts[0]==='admin' && parts[1]==='setup') {
+    const existing = await db.sql`SELECT 1 FROM users WHERE role='admin' LIMIT 1`;
+    if (existing.length) return fail('Administrator has already been configured.',409);
+    const b = await req.json();
+    const expected = Netlify.env.get('ADMIN_SETUP_HASH') || '';
+    if (!expected || sha256(String(b.code||'')) !== expected) return fail('Invalid setup code.',403);
+    const password = String(b.password||'');
+    if (password.length < 10) return fail('Administrator password must be at least 10 characters.');
+    const email = (Netlify.env.get('ADMIN_EMAIL') || 'rugs.san88@gmail.com').toLowerCase();
+    const hp = await hashPassword(password); const uid=id(); const accepted=new Date().toISOString();
+    await db.sql`INSERT INTO users(id,email,password_hash,password_salt,first_name,last_name,physical_address,role,verified,suspended,marketing_opt_in,accepted_terms_at,accepted_privacy_at)
+                 VALUES(${uid},${email},${hp.hash},${hp.salt},'Sandeep','Rugbee','497 Ontdekkers Road, Florida Hills, Gauteng','admin',TRUE,FALSE,FALSE,${accepted},${accepted})`;
+    const cookie=await createSession(uid); await audit(uid,'admin_setup','user',uid,{},req);
+    const admin=(await db.sql`SELECT * FROM users WHERE id=${uid}`)[0];
+    return ok({me:safeUser(admin),message:'Administrator configured.'},201,{'set-cookie':cookie});
+  }
+  if (method==='GET' && parts[0]==='bootstrap') {
+    await closeExpiredAuctions();
+    const settings=await getSettings();
+    return ok({me:safeUser(user),settings:{tradingEnabled:!!settings.trading_enabled,paymentGatewayEnabled:!!settings.payment_gateway_enabled,dealerRegistrationConfirmed:!!settings.dealer_registration_confirmed,softCloseSeconds:Number(settings.soft_close_seconds||120)},serverTime:new Date().toISOString()});
+  }
+
+  if (method==='POST' && parts[0]==='register') {
+    const b=await req.json();
+    const email=clean(b.email,320).toLowerCase();
+    const password=String(b.password||'');
+    if(!email.includes('@')||password.length<10) return fail('Use a valid email and a password of at least 10 characters.');
+    if(!clean(b.firstName,80)||!clean(b.lastName,80)||!clean(b.mobile,40)||!clean(b.idNumber,80)||!clean(b.physicalAddress,500)) return fail('Complete all bidder registration details.');
+    if(!isAdult(clean(b.dateOfBirth,20))) return fail('Bidders must be 18 or older.');
+    if(!b.acceptTerms||!b.acceptPrivacy) return fail('You must accept the Terms and Privacy Notice.');
+    const exists=await db.sql`SELECT 1 FROM users WHERE email=${email}`; if(exists.length) return fail('An account already exists for this email.',409);
+    const hp=await hashPassword(password); const uid=id(); const now=new Date().toISOString();
+    await db.sql`INSERT INTO users(id,email,password_hash,password_salt,first_name,last_name,mobile,id_number,date_of_birth,physical_address,marketing_opt_in,accepted_terms_at,accepted_privacy_at)
+                 VALUES(${uid},${email},${hp.hash},${hp.salt},${clean(b.firstName,80)},${clean(b.lastName,80)},${clean(b.mobile,40)},${clean(b.idNumber,80)},${clean(b.dateOfBirth,20)},${clean(b.physicalAddress,500)},${!!b.marketingOptIn},${now},${now})`;
+    await audit(uid,'register','user',uid,{email},req);
+    const cookie=await createSession(uid);
+    const u=(await db.sql`SELECT * FROM users WHERE id=${uid}`)[0];
+    return ok({me:safeUser(u),message:'Account created. Bidding activates after bidder verification.'},201,{'set-cookie':cookie});
+  }
+
+  if (method==='POST' && parts[0]==='login') {
+    const b=await req.json(); const email=clean(b.email,320).toLowerCase();
+    const rows=await db.sql`SELECT * FROM users WHERE email=${email} LIMIT 1`; const u=rows[0];
+    if(!u || !(await verifyPassword(String(b.password||''),u.password_salt,u.password_hash))) return fail('Incorrect email or password.',401);
+    if(u.suspended) return fail('This account is suspended.',403);
+    await db.sql`UPDATE users SET last_login_at=NOW() WHERE id=${u.id}`;
+    const cookie=await createSession(u.id); await audit(u.id,'login','user',u.id,{},req);
+    return ok({me:safeUser(u)},200,{'set-cookie':cookie});
+  }
+  if (method==='POST' && parts[0]==='logout') { await deleteSession(req); return ok({},200,{'set-cookie':clearSessionCookie}); }
+  if (method==='GET' && parts[0]==='me' && parts.length===1) return ok({me:safeUser(await requireUser(req))});
+  if (method==='POST' && parts[0]==='me' && parts[1]==='password') {
+    const u=await requireUser(req); const b=await req.json(); const rows=await db.sql`SELECT * FROM users WHERE id=${u.id}`; const full=rows[0];
+    if(!(await verifyPassword(String(b.currentPassword||''),full.password_salt,full.password_hash))) return fail('Current password is incorrect.',403);
+    if(String(b.newPassword||'').length<10) return fail('New password must be at least 10 characters.');
+    const hp=await hashPassword(String(b.newPassword)); await db.sql`UPDATE users SET password_hash=${hp.hash},password_salt=${hp.salt} WHERE id=${u.id}`;
+    await db.sql`DELETE FROM sessions WHERE user_id=${u.id}`; const cookie=await createSession(u.id); await audit(u.id,'change_password','user',u.id,{},req);
+    return ok({message:'Password changed.'},200,{'set-cookie':cookie});
+  }
+
+  if (method==='GET' && parts[0]==='auctions' && parts.length===1) return ok({auctions:await publicAuctions(user?.id),serverTime:new Date().toISOString()});
+  if (method==='GET' && parts[0]==='auctions' && parts[1]) {
+    await closeExpiredAuctions(); const rows=await db.sql`SELECT * FROM auctions WHERE id=${parts[1]} OR slug=${parts[1]} LIMIT 1`; if(!rows.length) return fail('Auction not found.',404);
+    if(rows[0].status==='draft' && user?.role!=='admin') return fail('Auction not found.',404);
+    return ok({auction:await auctionDto(rows[0],user?.id,true,user?.role==='admin'),serverTime:new Date().toISOString()});
+  }
+
+  if (method==='GET' && parts[0]==='images' && parts[1]) {
+    const key=parts.slice(1).join('/'); const meta=await imageStore.getWithMetadata(key,{type:'arrayBuffer'}); if(!meta) return new Response('Not found',{status:404});
+    return new Response(meta.data,{headers:{'content-type':String(meta.metadata?.contentType||'application/octet-stream'),'cache-control':'public,max-age=31536000,immutable'}});
+  }
+
+  if (method==='POST' && parts[0]==='watchlist' && parts[1]) {
+    const u=await requireUser(req); const aid=parts[1]; const has=(await db.sql`SELECT 1 FROM watchlist WHERE user_id=${u.id} AND auction_id=${aid}`).length>0;
+    if(has) await db.sql`DELETE FROM watchlist WHERE user_id=${u.id} AND auction_id=${aid}`; else await db.sql`INSERT INTO watchlist(user_id,auction_id) VALUES(${u.id},${aid})`;
+    return ok({watched:!has});
+  }
+  if(method==='GET' && parts[0]==='me' && parts[1]==='watchlist') {
+    const u=await requireUser(req); await closeExpiredAuctions(); const rows=await db.sql`SELECT a.* FROM watchlist w JOIN auctions a ON a.id=w.auction_id WHERE w.user_id=${u.id} ORDER BY a.current_end_at`;
+    const out=[]; for(const a of rows) out.push(await auctionDto(a,u.id,false)); return ok({auctions:out});
+  }
+  if(method==='GET' && parts[0]==='me' && parts[1]==='bids') {
+    const u=await requireUser(req); await closeExpiredAuctions(); const rows=await db.sql`SELECT DISTINCT a.* FROM bids b JOIN auctions a ON a.id=b.auction_id WHERE b.user_id=${u.id} ORDER BY a.current_end_at DESC`;
+    const out=[]; for(const a of rows) out.push(await auctionDto(a,u.id,false)); return ok({auctions:out});
+  }
+  if(method==='GET' && parts[0]==='me' && parts[1]==='wins') {
+    const u=await requireUser(req); await closeExpiredAuctions();
+    const rows=await db.sql`SELECT a.* FROM auctions a WHERE a.status='closed' AND (SELECT b.user_id FROM bids b WHERE b.auction_id=a.id AND b.retracted_at IS NULL ORDER BY b.amount_cents DESC,b.created_at ASC LIMIT 1)=${u.id} ORDER BY a.current_end_at DESC`;
+    const out=[]; for(const a of rows) out.push(await auctionDto(a,u.id,false)); return ok({auctions:out});
+  }
+  if(method==='GET' && parts[0]==='me' && parts[1]==='notifications') {
+    const u=await requireUser(req); const rows=await db.sql`SELECT * FROM notifications WHERE user_id=${u.id} ORDER BY created_at DESC LIMIT 100`; return ok({notifications:rows});
+  }
+  if(method==='POST' && parts[0]==='me' && parts[1]==='notifications' && parts[2]==='read') {
+    const u=await requireUser(req); await db.sql`UPDATE notifications SET read_at=COALESCE(read_at,NOW()) WHERE user_id=${u.id}`; return ok();
+  }
+
+  if(method==='POST' && parts[0]==='auctions' && parts[2]==='bid') {
+    const u=await requireUser(req); if(!u.verified) return fail('Your bidder account is awaiting verification.',403);
+    const settings=await getSettings(); if(!settings.trading_enabled) return fail('Bidding is not open yet. Whacky Auctions is in pre-launch mode.',403);
+    const b=await req.json(); const amount=asCents(b.amountCents); const aid=parts[1];
+    const client=await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const ar=await client.query('SELECT * FROM auctions WHERE id=$1 FOR UPDATE',[aid]); if(!ar.rows.length) {await client.query('ROLLBACK');return fail('Auction not found.',404);} const a=ar.rows[0];
+      const now=Date.now(); const start=new Date(a.start_at).getTime(); const end=new Date(a.current_end_at).getTime();
+      if(!['scheduled','live'].includes(a.status)||now<start||now>=end){await client.query('ROLLBACK');return fail('This auction is not open for bidding.',409);}
+      const hr=await client.query('SELECT * FROM bids WHERE auction_id=$1 AND retracted_at IS NULL ORDER BY amount_cents DESC,created_at ASC LIMIT 1',[aid]); const prev=hr.rows[0];
+      const minimum=prev?Number(prev.amount_cents)+Number(a.bid_increment_cents):Number(a.opening_bid_cents);
+      if(amount<minimum){await client.query('ROLLBACK');return fail(`Minimum next bid is R${(minimum/100).toFixed(2)}.`,409,{minimumCents:minimum});}
+      const bidId=id(); await client.query('INSERT INTO bids(id,auction_id,user_id,amount_cents,ip_address,user_agent) VALUES($1,$2,$3,$4,$5,$6)',[bidId,aid,u.id,amount,getClientIp(req),req.headers.get('user-agent')]);
+      let newEnd=a.current_end_at; const remaining=end-now; if(remaining<=Number(a.soft_close_seconds)*1000){newEnd=new Date(now+Number(a.soft_close_seconds)*1000).toISOString();await client.query('UPDATE auctions SET current_end_at=$2,status=\'live\',updated_at=NOW() WHERE id=$1',[aid,newEnd]);} else if(a.status==='scheduled'){await client.query("UPDATE auctions SET status='live',updated_at=NOW() WHERE id=$1",[aid]);}
+      if(prev&&prev.user_id!==u.id) await client.query('INSERT INTO notifications(id,user_id,type,message,auction_id) VALUES($1,$2,\'outbid\',$3,$4)',[id(),prev.user_id,`You have been outbid on ${a.title}.`,aid]);
+      await client.query('COMMIT'); await audit(u.id,'place_bid','auction',aid,{amountCents:amount,bidId},req);
+      return ok({bidId,currentBidCents:amount,currentEndAt:newEnd,softCloseExtended:new Date(newEnd).getTime()>end});
+    } catch(e){try{await client.query('ROLLBACK')}catch{};throw e;} finally{client.release();}
+  }
+
+  if(method==='POST' && parts[0]==='bids' && parts[2]==='retract') {
+    const u=await requireUser(req); const bidId=parts[1]; const client=await db.pool.connect();
+    try{await client.query('BEGIN');const br=await client.query('SELECT b.*,a.status,a.current_end_at FROM bids b JOIN auctions a ON a.id=b.auction_id WHERE b.id=$1 FOR UPDATE',[bidId]);if(!br.rows.length){await client.query('ROLLBACK');return fail('Bid not found.',404);}const b=br.rows[0];if(b.user_id!==u.id){await client.query('ROLLBACK');return fail('You may only retract your own bid.',403);}if(b.retracted_at){await client.query('ROLLBACK');return fail('Bid already retracted.',409);}if(!['scheduled','live'].includes(b.status)||new Date(b.current_end_at).getTime()<=Date.now()){await client.query('ROLLBACK');return fail('This sale has already completed; the bid can no longer be retracted.',409);}const body=await req.json().catch(()=>({}));await client.query('UPDATE bids SET retracted_at=NOW(),retraction_reason=$2 WHERE id=$1',[bidId,clean(body.reason||'Bidder retraction before completion',300)]);await client.query('COMMIT');await audit(u.id,'retract_bid','bid',bidId,{auctionId:b.auction_id},req);return ok({message:'Bid retracted before completion.'});}catch(e){try{await client.query('ROLLBACK')}catch{};throw e;}finally{client.release();}
+  }
+
+  if(method==='POST' && parts[0]==='checkout' && parts[1]) {
+    const u=await requireUser(req);
+    const order=(await db.sql`SELECT * FROM orders WHERE auction_id=${parts[1]} AND user_id=${u.id} LIMIT 1`)[0];
+    if(!order) return fail('No payable winning order was found for this auction.',404);
+    if(order.status==='paid') return ok({status:'paid',message:'This order is already paid.'});
+    const settings=await getSettings();
+    if(!settings.payment_gateway_enabled) return fail('Payment gateway is not connected yet.',503,{code:'PAYMENT_GATEWAY_PENDING',totalCents:Number(order.total_cents)});
+    const base=new URL(req.url).origin;
+    try {
+      const checkout=await createCheckout({
+        orderId:order.id,auctionId:order.auction_id,userId:u.id,email:u.email,amountCents:Number(order.total_cents),
+        description:`Whacky Auctions - ${order.auction_id}`,
+        returnUrl:`${base}/wins?payment=return`,cancelUrl:`${base}/wins?payment=cancelled`,notifyUrl:`${base}/api/payments/webhook`
+      });
+      await db.sql`UPDATE orders SET status='pending',payment_reference=${checkout.providerReference||null},updated_at=NOW() WHERE id=${order.id}`;
+      await audit(u.id,'checkout_started','order',order.id,{auctionId:order.auction_id,totalCents:Number(order.total_cents)},req);
+      return ok({redirectUrl:checkout.redirectUrl,totalCents:Number(order.total_cents)});
+    } catch(e:any) {
+      return fail(e?.message||'Payment could not be started.',e?.status||503,{code:e?.code||'PAYMENT_ERROR',totalCents:Number(order.total_cents)});
+    }
+  }
+
+
+  if(method==='POST' && parts[0]==='payments' && parts[1]==='webhook') {
+    return fail('Payment webhook adapter has not yet been configured.',503,{code:'PAYMENT_ADAPTER_PENDING'});
+  }
+
+  // ADMIN
+  if(parts[0]==='admin') {
+    const admin=await requireAdmin(req);
+    if(method==='GET'&&parts[1]==='dashboard') {
+      await closeExpiredAuctions(); const [users,auctions,bids,pending]=await Promise.all([
+        db.sql`SELECT COUNT(*)::int c FROM users`,db.sql`SELECT COUNT(*)::int c FROM auctions`,db.sql`SELECT COUNT(*)::int c FROM bids WHERE retracted_at IS NULL`,db.sql`SELECT COUNT(*)::int c FROM users WHERE role='bidder' AND verified=FALSE AND suspended=FALSE`
+      ]); return ok({stats:{users:users[0].c,auctions:auctions[0].c,bids:bids[0].c,pendingVerification:pending[0].c},settings:await getSettings()});
+    }
+    if(method==='GET'&&parts[1]==='users') {
+      const rows=await db.sql`SELECT id,email,first_name,last_name,mobile,id_number,date_of_birth,physical_address,role,verified,suspended,created_at,last_login_at FROM users ORDER BY created_at DESC`; return ok({users:rows});
+    }
+    if(method==='POST'&&parts[1]==='users'&&parts[2]&&parts[3]==='verify') {
+      const body=await req.json(); await db.sql`UPDATE users SET verified=${!!body.verified} WHERE id=${parts[2]} AND role='bidder'`; await audit(admin.id,'verify_user','user',parts[2],{verified:!!body.verified},req);return ok();
+    }
+    if(method==='POST'&&parts[1]==='users'&&parts[2]&&parts[3]==='suspend') {
+      const body=await req.json(); await db.sql`UPDATE users SET suspended=${!!body.suspended} WHERE id=${parts[2]} AND role='bidder'`; await audit(admin.id,'suspend_user','user',parts[2],{suspended:!!body.suspended},req);return ok();
+    }
+    if(method==='GET'&&parts[1]==='auctions') {
+      await closeExpiredAuctions(); const rows=await db.sql`SELECT * FROM auctions ORDER BY created_at DESC`;const out=[];for(const a of rows)out.push(await auctionDto(a,admin.id,false,true));return ok({auctions:out});
+    }
+    if(method==='POST'&&parts[1]==='auctions'&&parts.length===2) {
+      const b=await req.json(); const aid=id(); const base=slugify(clean(b.title,150)); let slug=`${base}-${aid.slice(0,8)}`;
+      const start=new Date(b.startAt); const end=new Date(b.endAt); if(!(start<end)) return fail('Auction end time must be after the start time.');
+      const soft=Math.max(30,Math.min(900,Number(b.softCloseSeconds||120))); const opening=asCents(b.openingBidCents); const inc=asCents(b.bidIncrementCents); if(inc<1)return fail('Bid increment must be greater than zero.');
+      const reserve=b.reservePriceCents==null||b.reservePriceCents===''?null:asCents(b.reservePriceCents);
+      await db.sql`INSERT INTO auctions(id,slug,title,category,description,condition_text,start_at,scheduled_end_at,current_end_at,soft_close_seconds,opening_bid_cents,bid_increment_cents,reserve_price_cents,reserve_disclosed,buyer_premium_percent,vat_note,payment_deadline_hours,inspection_note,collection_note,storage_fee_note,auctioneer_name,created_by)
+                   VALUES(${aid},${slug},${clean(b.title,150)},${clean(b.category,80)||'General'},${clean(b.description,12000)},${clean(b.conditionText,5000)},${start.toISOString()},${end.toISOString()},${end.toISOString()},${soft},${opening},${inc},${reserve},${b.reserveDisclosed!==false},${Number(b.buyerPremiumPercent||0)},${clean(b.vatNote,500)||'VAT treatment as displayed for this lot.'},${Math.max(1,Number(b.paymentDeadlineHours||24))},${clean(b.inspectionNote,1000)},${clean(b.collectionNote,1000)},${clean(b.storageFeeNote,1000)},${clean(b.auctioneerName,160)||null},${admin.id})`;
+      await audit(admin.id,'create_auction','auction',aid,{title:b.title},req);return ok({auctionId:aid,slug},201);
+    }
+    if(method==='PUT'&&parts[1]==='auctions'&&parts[2]) {
+      const b=await req.json(); const aid=parts[2]; const ex=(await db.sql`SELECT * FROM auctions WHERE id=${aid}`)[0]; if(!ex)return fail('Auction not found.',404); if(ex.status!=='draft')return fail('Published or completed auctions cannot be edited through the draft editor. Create an amended auction/rules record instead.');
+      const start=new Date(b.startAt);const end=new Date(b.endAt);if(!(start<end))return fail('Auction end time must be after start time.');const reserve=b.reservePriceCents==null||b.reservePriceCents===''?null:asCents(b.reservePriceCents);
+      await db.sql`UPDATE auctions SET title=${clean(b.title,150)},category=${clean(b.category,80)||'General'},description=${clean(b.description,12000)},condition_text=${clean(b.conditionText,5000)},start_at=${start.toISOString()},scheduled_end_at=${end.toISOString()},current_end_at=CASE WHEN status='draft' THEN ${end.toISOString()} ELSE current_end_at END,soft_close_seconds=${Math.max(30,Math.min(900,Number(b.softCloseSeconds||120)))},opening_bid_cents=${asCents(b.openingBidCents)},bid_increment_cents=${asCents(b.bidIncrementCents)},reserve_price_cents=${reserve},reserve_disclosed=${b.reserveDisclosed!==false},buyer_premium_percent=${Number(b.buyerPremiumPercent||0)},vat_note=${clean(b.vatNote,500)},payment_deadline_hours=${Math.max(1,Number(b.paymentDeadlineHours||24))},inspection_note=${clean(b.inspectionNote,1000)},collection_note=${clean(b.collectionNote,1000)},storage_fee_note=${clean(b.storageFeeNote,1000)},auctioneer_name=${clean(b.auctioneerName,160)||null},updated_at=NOW() WHERE id=${aid}`;
+      await audit(admin.id,'update_auction','auction',aid,{},req);return ok();
+    }
+    if(method==='POST'&&parts[1]==='auctions'&&parts[2]&&parts[3]==='publish') {
+      const settings=await getSettings();
+      if(!settings.dealer_registration_confirmed) return fail('Second-hand-goods dealer registration must be recorded before publishing live auctions.',403);
+      if(!settings.trading_enabled) return fail('Launch lock is active. Enable trading only after the required second-hand-goods registration and payment setup are complete.',403);
+      if(!settings.payment_gateway_enabled) return fail('Connect the payment gateway before publishing live auctions.',403);
+      const aid=parts[2]; const rows=await db.sql`SELECT * FROM auctions WHERE id=${aid}`; if(!rows.length)return fail('Auction not found.',404);const a=rows[0];
+      if(!a.auctioneer_name)return fail('Add the appointed auctioneer before publishing.');if(new Date(a.start_at).getTime()<Date.now()+24*3600*1000)return fail('Rules must be available at least 24 hours before the auction start; move the start time later.');
+      const img=(await db.sql`SELECT 1 FROM auction_images WHERE auction_id=${aid} LIMIT 1`).length;if(!img)return fail('Add at least one item photo before publishing.');
+      await db.sql`UPDATE auctions SET status='scheduled',rules_published_at=NOW(),updated_at=NOW() WHERE id=${aid}`;await audit(admin.id,'publish_auction','auction',aid,{},req);return ok();
+    }
+    if(method==='POST'&&parts[1]==='auctions'&&parts[2]&&parts[3]==='image') {
+      const aid=parts[2]; const exists=(await db.sql`SELECT 1 FROM auctions WHERE id=${aid}`).length;if(!exists)return fail('Auction not found.',404);
+      const form=await req.formData();const file=form.get('file');if(!(file instanceof File))return fail('Choose an image.');const allowedImages=new Set(['image/jpeg','image/png','image/webp','image/gif']);if(!allowedImages.has(file.type))return fail('Use JPEG, PNG, WebP or GIF images only.');if(file.size>8*1024*1024)return fail('Image must be 8 MB or smaller.');
+      const imageId=id();const ext=(file.name.split('.').pop()||'img').replace(/[^a-z0-9]/gi,'').toLowerCase();const key=`${aid}/${imageId}.${ext}`;await imageStore.set(key,await file.arrayBuffer(),{metadata:{contentType:file.type}});
+      const count=(await db.sql`SELECT COUNT(*)::int c FROM auction_images WHERE auction_id=${aid}`)[0].c;await db.sql`INSERT INTO auction_images(id,auction_id,blob_key,content_type,alt_text,sort_order) VALUES(${imageId},${aid},${key},${file.type},${clean(form.get('alt')||'',200)},${count})`;await audit(admin.id,'add_image','auction',aid,{imageId},req);return ok({image:{id:imageId,url:`/api/images/${encodeURIComponent(key)}`}},201);
+    }
+    if(method==='DELETE'&&parts[1]==='images'&&parts[2]) {
+      const rows=await db.sql`SELECT * FROM auction_images WHERE id=${parts[2]}`;if(!rows.length)return fail('Image not found.',404);await imageStore.delete(rows[0].blob_key);await db.sql`DELETE FROM auction_images WHERE id=${parts[2]}`;await audit(admin.id,'delete_image','auction',rows[0].auction_id,{imageId:parts[2]},req);return ok();
+    }
+    if(method==='POST'&&parts[1]==='settings'&&parts[2]==='dealer-registration') {
+      const body=await req.json();
+      const registrationNumber=clean(body.registrationNumber,120);
+      const expiryDate=clean(body.expiryDate,30);
+      const confirmed=!!body.confirmed;
+      if(confirmed&&!registrationNumber) return fail('Enter the SAPS second-hand-goods registration number before confirming.');
+      await setSetting('dealer_registration_confirmed',confirmed);
+      await setSetting('dealer_registration_number',registrationNumber);
+      await setSetting('dealer_registration_expiry',expiryDate);
+      if(!confirmed) await setSetting('trading_enabled',false);
+      await audit(admin.id,'set_dealer_registration','settings','dealer_registration',{confirmed,registrationNumber,expiryDate},req);
+      return ok({dealerRegistrationConfirmed:confirmed});
+    }
+    if(method==='POST'&&parts[1]==='settings'&&parts[2]==='trading') {
+      const body=await req.json(); const enabled=!!body.enabled; const settings=await getSettings();
+      if(enabled&&!settings.dealer_registration_confirmed)return fail('Record the valid second-hand-goods dealer registration before enabling trading.',403);
+      if(enabled&&!settings.payment_gateway_enabled)return fail('Payment gateway must be connected before the launch switch can be enabled.',403);
+      await setSetting('trading_enabled',enabled);await audit(admin.id,'set_trading','settings','trading_enabled',{enabled},req);return ok({tradingEnabled:enabled});
+    }
+    if(method==='GET'&&parts[1]==='records'&&parts[2]==='bidders.csv') {
+      const rows=await db.sql`SELECT id,first_name,last_name,email,mobile,id_number,date_of_birth,physical_address,verified,suspended,created_at FROM users WHERE role='bidder' ORDER BY created_at`;
+      const esc=(x:any)=>`"${String(x??'').replaceAll('"','""')}"`;const lines=['Bidder ID,First name,Last name,Email,Mobile,ID/Passport,Date of birth,Physical address,Verified,Suspended,Created at',...rows.map((r:any)=>[r.id,r.first_name,r.last_name,r.email,r.mobile,r.id_number,r.date_of_birth,r.physical_address,r.verified,r.suspended,r.created_at].map(esc).join(','))];return new Response(lines.join('\n'),{headers:{'content-type':'text/csv; charset=utf-8','content-disposition':'attachment; filename="whacky-bidders.csv"'}});
+    }
+    if(method==='GET'&&parts[1]==='records'&&parts[2]==='vendor-roll.csv') {
+      const rows=await db.sql`SELECT a.id,a.title,a.status,a.start_at,a.current_end_at,b.id bid_id,b.amount_cents,b.created_at,u.first_name,u.last_name,u.email FROM auctions a LEFT JOIN bids b ON b.auction_id=a.id LEFT JOIN users u ON u.id=b.user_id ORDER BY a.created_at,b.created_at`;
+      const esc=(x:any)=>`"${String(x??'').replaceAll('"','""')}"`;const lines=['Auction ID,Lot,Bid ID,Bidder,Email,Amount (R),Bid time,Auction status,Start,Close',...rows.map((r:any)=>[r.id,r.title,r.bid_id,r.bid_id?`${r.first_name} ${r.last_name}`:'',r.email,r.amount_cents==null?'':(Number(r.amount_cents)/100).toFixed(2),r.created_at,r.status,r.start_at,r.current_end_at].map(esc).join(','))];return new Response(lines.join('\n'),{headers:{'content-type':'text/csv; charset=utf-8','content-disposition':'attachment; filename="whacky-vendor-roll.csv"'}});
+    }
+  }
+
+  return fail('Endpoint not found.',404);
+}
+
+export default async (req:Request) => {
+  try { return await handle(req); }
+  catch (e:any) { console.error(e); return fail(e?.message||'Unexpected server error.',e?.status||500); }
+};
+
+export const config: Config = { path: '/api/*' };
