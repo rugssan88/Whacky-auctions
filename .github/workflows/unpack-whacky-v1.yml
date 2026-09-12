@@ -1,11 +1,36 @@
 name: Unpack Whacky Auctions v1
+
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+
 permissions:
   contents: write
+
 jobs:
   unpack:
+    if: github.event.head_commit.message == 'Run Whacky Auctions source unpack'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - run: echo ready
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Extract source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/whacky-source
+          mkdir -p /tmp/whacky-source
+          unzip -q Whacky_Auctions_App_Source_v1.0.zip -d /tmp/whacky-source
+          test -f /tmp/whacky-source/whacky-auctions-app/package.json
+          cp -a /tmp/whacky-source/whacky-auctions-app/. .
+          git rm -f Whacky_Auctions_App_Source_v1.0.zip
+          git rm -f .github/workflows/unpack-whacky-v1.yml
+          git config user.name "rugssan88"
+          git config user.email "rugs.san88@gmail.com"
+          git add -A
+          git commit -m "Initial Whacky Auctions v1.0 production build"
+          git push origin HEAD:main
