@@ -155,6 +155,25 @@ async function saveQuickPhotos(aid,title){
     item.kind='existing';item.id=d.image.id;item.url=d.image.url;item.alt=title||'';delete item.file;
   }
   const desiredIds=state.quickPhotos.filter(x=>x.kind==='existing').map(x=>x.id);
+
+
+
+/* Whacky Auctions v1.1 — local voice layer */
+setTimeout(() => {
+  const heroTitle = document.querySelector('.hero h1');
+  if (heroTitle) heroTitle.innerHTML = 'Good stuff. <span class="grad">No funny business.</span>';
+  const heroCopy = document.querySelector('.hero p');
+  if (heroCopy) heroCopy.textContent = 'Find the lekker things you actually want, bid with confidence, and leave the “why did I pay full price?” drama to someone else.';
+  const eyebrow = document.querySelector('.eyebrow');
+  if (eyebrow) eyebrow.textContent = 'Lekker finds • fair play • zero kak';
+  const hero = document.querySelector('.hero');
+  if (hero && !hero.querySelector('.vibe-note')) {
+    const note = document.createElement('div');
+    note.className = 'vibe-note';
+    note.textContent = 'Built for SA bargain hunters — because paying full price is kak.';
+    hero.appendChild(note);
+  }
+}, 700);
   const desiredSet=new Set(desiredIds);
   for(const oldId of state.quickOriginalImageIds)if(!desiredSet.has(oldId)){try{await api(`admin/images/${oldId}`,{method:'DELETE'})}catch(e){if(e.status!==404)throw e}}
   await api(`admin/auctions/${aid}/images/reorder`,{method:'POST',body:{imageIds:desiredIds}});
