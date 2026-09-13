@@ -10,8 +10,9 @@ import { createCheckout } from './lib/payment-gateway.mts';
 const clean = (s:any,max=5000) => String(s ?? '').trim().slice(0,max);
 const money = (v:any) => Number(v ?? 0);
 
-function verifyYocoWebhook(rawBody:string, req:Request) {
-  const secret=(Netlify.env.get('YOCO_WEBHOOK_SECRET')||'').trim();
+async function verifyYocoWebhook(rawBody:string, req:Request) {
+  const settings=await getSettings();
+  const secret=(Netlify.env.get('YOCO_WEBHOOK_SECRET')||settings.yoco_webhook_secret||'').trim();
   if(!secret) throw Object.assign(new Error('Yoco webhook secret is not configured.'),{status:503,code:'YOCO_WEBHOOK_NOT_CONFIGURED'});
   const webhookId=req.headers.get('webhook-id')||'';
   const timestamp=req.headers.get('webhook-timestamp')||'';
@@ -237,7 +238,7 @@ async function handle(req:Request) {
 
   if(method==='POST' && parts[0]==='payments' && parts[1]==='webhook') {
     const rawBody=await req.text();
-    verifyYocoWebhook(rawBody,req);
+    await verifyYocoWebhook(rawBody,req);
     let event:any;
     try{event=JSON.parse(rawBody)}catch{return fail('Invalid webhook JSON.',400,{code:'YOCO_WEBHOOK_INVALID_JSON'})}
     if(event?.type==='payment.succeeded'){
@@ -254,6 +255,19 @@ async function handle(req:Request) {
       }
     }
     return ok({received:true});
+  }
+ 
+  if(method==='POST' && parts[0]==='admin' && parts[1]==='yoco' && parts[2]==='register-webhook') {
+    const admin=await requireAdmin(req);
+    const secretKey=(Netlify.env.get('YOCO_SECRET_KEY')||'').trim();
+    if(!secretKey) return fail('Yoco secret key is not configured.',503,{code:'YOCO_NOT_CONFIGURED'});
+    const base=new URL(req.url).origin;
+    const response=await fetch('https://payments.yoco.com/api/webhooks',{method:'POST',headers:{authorization:`Bearer ${secretKey}`,'content-type':'application/json'},body:JSON.stringify({name:'Whacky Auctions checkout payments',url:`${base}/api/payments/webhook`})});
+    const data:any=await response.json().catch(()=>({}));
+    if(!response.ok||!data.secret) return fail(data?.message||data?.error||'Yoco webhook registration failed.',response.status>=400?response.status:502,{code:'YOCO_WEBHOOK_REGISTRATION_FAILED'});
+    await setSetting('yoco_webhook_secret',String(data.secret));
+    await audit(admin.id,'yoco_webhook_registered','settings','yoco_webhook',{subscriptionId:data.id||null,mode:data.mode||null},req);
+    return ok({registered:true,mode:data.mode||null,subscriptionId:data.id||null});
   }
 
   if(method==='POST' && parts[0]==='admin' && parts[1]==='auctions' && parts[2] && parts[3]==='test-checkout') {
