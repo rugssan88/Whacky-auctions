@@ -241,3 +241,20 @@ setInterval(tick,1000);
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();state.deferredInstall=e;installUI()});
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(console.error));
 bootstrap();
+
+/* Whacky Auctions v1.1 — local voice layer */
+setTimeout(() => {
+  const heroTitle = document.querySelector('.hero h1');
+  if (heroTitle) heroTitle.innerHTML = 'Good stuff. <span class="grad">No funny business.</span>';
+  const heroCopy = document.querySelector('.hero p');
+  if (heroCopy) heroCopy.textContent = 'Find the lekker things you actually want, bid with confidence, and leave the “why did I pay full price?” drama to someone else.';
+  const eyebrow = document.querySelector('.eyebrow');
+  if (eyebrow) eyebrow.textContent = 'Lekker finds • fair play • zero kak';
+  const hero = document.querySelector('.hero');
+  if (hero && !hero.querySelector('.vibe-note')) {
+    const note = document.createElement('div');
+    note.className = 'vibe-note';
+    note.textContent = 'Built for SA bargain hunters — because paying full price is kak.';
+    hero.appendChild(note);
+  }
+}, 1200);
