@@ -277,14 +277,19 @@ async function handle(req:Request) {
     if(auction.status!=='draft') return fail('Yoco test checkout is only available for draft auctions.',409);
     const amountCents=Math.max(100,Number(auction.opening_bid_cents||0));
     const base=new URL(req.url).origin;
+    const existingTest=(await db.sql`SELECT id FROM orders WHERE auction_id=${auction.id} LIMIT 1`)[0];
+    const testOrderId=existingTest?.id||id();
+    if(existingTest) await db.sql`UPDATE orders SET user_id=${admin.id},hammer_price_cents=${amountCents},buyer_premium_cents=0,total_cents=${amountCents},status='pending',payment_gateway='yoco',payment_reference=NULL,paid_at=NULL,updated_at=NOW() WHERE id=${testOrderId}`;
+    else await db.sql`INSERT INTO orders(id,auction_id,user_id,hammer_price_cents,buyer_premium_cents,total_cents,status,payment_gateway) VALUES(${testOrderId},${auction.id},${admin.id},${amountCents},0,${amountCents},'pending','yoco')`;
     const checkout=await createCheckout({
-      orderId:`test-${auction.id}`,auctionId:auction.id,userId:admin.id,email:admin.email,
+      orderId:testOrderId,auctionId:auction.id,userId:admin.id,email:admin.email,
       amountCents,description:`TEST - Whacky Auctions - ${auction.title}`,
       returnUrl:`${base}/admin?yoco=test-success`,
       cancelUrl:`${base}/admin?yoco=test-cancelled`,
       notifyUrl:`${base}/api/payments/webhook`
     });
-    await audit(admin.id,'yoco_test_checkout','auction',auction.id,{amountCents,providerReference:checkout.providerReference||null},req);
+    await db.sql`UPDATE orders SET payment_reference=${checkout.providerReference||null},updated_at=NOW() WHERE id=${testOrderId}`;
+    await audit(admin.id,'yoco_test_checkout','auction',auction.id,{amountCents,providerReference:checkout.providerReference||null,testOrderId},req);
     return ok({redirectUrl:checkout.redirectUrl,amountCents,testMode:true});
   }
 
