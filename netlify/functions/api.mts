@@ -216,6 +216,24 @@ async function handle(req:Request) {
     return fail('Payment webhook adapter has not yet been configured.',503,{code:'PAYMENT_ADAPTER_PENDING'});
   }
 
+  if(method==='POST' && parts[0]==='admin' && parts[1]==='auctions' && parts[2] && parts[3]==='test-checkout') {
+    const admin=await requireAdmin(req);
+    const auction=(await db.sql`SELECT * FROM auctions WHERE id=${parts[2]} LIMIT 1`)[0];
+    if(!auction) return fail('Auction not found.',404);
+    if(auction.status!=='draft') return fail('Yoco test checkout is only available for draft auctions.',409);
+    const amountCents=Math.max(100,Number(auction.opening_bid_cents||0));
+    const base=new URL(req.url).origin;
+    const checkout=await createCheckout({
+      orderId:`test-${auction.id}`,auctionId:auction.id,userId:admin.id,email:admin.email,
+      amountCents,description:`TEST - Whacky Auctions - ${auction.title}`,
+      returnUrl:`${base}/admin?yoco=test-success`,
+      cancelUrl:`${base}/admin?yoco=test-cancelled`,
+      notifyUrl:`${base}/api/payments/webhook`
+    });
+    await audit(admin.id,'yoco_test_checkout','auction',auction.id,{amountCents,providerReference:checkout.providerReference||null},req);
+    return ok({redirectUrl:checkout.redirectUrl,amountCents,testMode:true});
+  }
+
   // ADMIN
   if(parts[0]==='admin') {
     const admin=await requireAdmin(req);
