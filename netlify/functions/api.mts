@@ -1,4 +1,5 @@
 import type { Config } from '@netlify/functions';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import {
   db,imageStore,json,ok,fail,id,slugify,hashPassword,verifyPassword,getUser,requireUser,requireAdmin,
   createSession,deleteSession,clearSessionCookie,getSettings,setSetting,audit,ensureBootstrapAdmin,closeExpiredAuctions,
@@ -8,6 +9,28 @@ import { createCheckout } from './lib/payment-gateway.mts';
 
 const clean = (s:any,max=5000) => String(s ?? '').trim().slice(0,max);
 const money = (v:any) => Number(v ?? 0);
+
+function verifyYocoWebhook(rawBody:string, req:Request) {
+  const secret=(Netlify.env.get('YOCO_WEBHOOK_SECRET')||'').trim();
+  if(!secret) throw Object.assign(new Error('Yoco webhook secret is not configured.'),{status:503,code:'YOCO_WEBHOOK_NOT_CONFIGURED'});
+  const webhookId=req.headers.get('webhook-id')||'';
+  const timestamp=req.headers.get('webhook-timestamp')||'';
+  const signatureHeader=req.headers.get('webhook-signature')||'';
+  const timestampNumber=Number(timestamp);
+  if(!webhookId||!timestamp||!signatureHeader||!Number.isFinite(timestampNumber)||Math.abs(Math.floor(Date.now()/1000)-timestampNumber)>180) {
+    throw Object.assign(new Error('Invalid Yoco webhook headers.'),{status:403,code:'YOCO_WEBHOOK_INVALID'});
+  }
+  const secretPart=secret.startsWith('whsec_')?secret.slice(6):secret;
+  let secretBytes:Buffer;
+  try{secretBytes=Buffer.from(secretPart,'base64')}catch{throw Object.assign(new Error('Invalid Yoco webhook secret.'),{status:503,code:'YOCO_WEBHOOK_SECRET_INVALID'})}
+  const expected=createHmac('sha256',secretBytes).update(`${webhookId}.${timestamp}.${rawBody}`).digest('base64');
+  const valid=signatureHeader.split(' ').some(entry=>{
+    const provided=entry.split(',')[1]||'';
+    const a=Buffer.from(expected),b=Buffer.from(provided);
+    return a.length===b.length&&timingSafeEqual(a,b);
+  });
+  if(!valid) throw Object.assign(new Error('Invalid Yoco webhook signature.'),{status:403,code:'YOCO_WEBHOOK_INVALID'});
+}
 
 async function auctionDto(a:any, userId?:string|null, includeBids=false, adminView=false) {
   const images = await db.sql`SELECT id,blob_key,alt_text,sort_order FROM auction_images WHERE auction_id=${a.id} ORDER BY sort_order,id`;
@@ -213,7 +236,24 @@ async function handle(req:Request) {
 
 
   if(method==='POST' && parts[0]==='payments' && parts[1]==='webhook') {
-    return fail('Payment webhook adapter has not yet been configured.',503,{code:'PAYMENT_ADAPTER_PENDING'});
+    const rawBody=await req.text();
+    verifyYocoWebhook(rawBody,req);
+    let event:any;
+    try{event=JSON.parse(rawBody)}catch{return fail('Invalid webhook JSON.',400,{code:'YOCO_WEBHOOK_INVALID_JSON'})}
+    if(event?.type==='payment.succeeded'){
+      const checkoutId=event?.payload?.metadata?.checkoutId;
+      const amountCents=Number(event?.payload?.amount);
+      if(!checkoutId||!Number.isFinite(amountCents)) return fail('Yoco payment event is missing checkout metadata.',400,{code:'YOCO_WEBHOOK_MISSING_METADATA'});
+      const order=(await db.sql`SELECT * FROM orders WHERE payment_reference=${String(checkoutId)} LIMIT 1`)[0];
+      if(order){
+        if(Number(order.total_cents)!==amountCents) return fail('Yoco payment amount does not match the order.',400,{code:'YOCO_WEBHOOK_AMOUNT_MISMATCH'});
+        if(order.status!=='paid'){
+          await db.sql`UPDATE orders SET status='paid',paid_at=COALESCE(paid_at,NOW()),updated_at=NOW() WHERE id=${order.id}`;
+          await audit(order.user_id,'payment_succeeded','order',order.id,{provider:'yoco',eventId:event.id,checkoutId},req);
+        }
+      }
+    }
+    return ok({received:true});
   }
 
   if(method==='POST' && parts[0]==='admin' && parts[1]==='auctions' && parts[2] && parts[3]==='test-checkout') {
