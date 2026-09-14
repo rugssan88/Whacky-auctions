@@ -26,7 +26,8 @@ has(css, 'font-size:16px', 'Phone input sizing should avoid tiny controls / iOS 
 has(app, "state.settings.softCloseSeconds||120", 'Soft-close default must continue to use the existing setting / 120 seconds.');
 has(app, "paymentDeadlineHours:Number(f.get('paymentHours')||2)", '2-hour payment default changed.');
 has(app, 'Inspection by arrangement before bidding closes.', 'Inspection default changed.');
-has(app, 'Collection arrangements will be shown to the winning bidder.', 'Collection default changed.');
+has(app, "Collection in Florida, Gauteng within 30 days: Saturdays and Sundays 07:00-17:30, or weekdays before 06:30, by prior arrangement. Courier at the buyer's cost and arrangement.", 'Collection default changed.');
+has(app, 'buyerPremiumPercent", 5', '5% buyer-premium default changed.');
 has(app, 'Storage charges may apply after the collection deadline where lawfully disclosed.', 'Storage-fee wording changed.');
 
 // Create/edit/duplicate flow remains on the existing auctions API.
@@ -53,7 +54,7 @@ has(api, "if(!settings.payment_gateway_enabled)", 'Payment-gateway publication l
 has(api, 'bidder_verification_checkout_started', 'R10 bidder-verification checkout route missing.');
 has(api, 'amountCents:1000', 'R10 verification amount changed.');
 has(app, 'Verify me for R10', 'Bidder verification call-to-action missing.');
-has(sw, "whacky-v3-bidder-verification", 'Service-worker cache version was not bumped for bidder verification.');
+has(sw, "whacky-v4-standard-rules-2026", 'Service-worker cache version was not bumped for the 2026 standard rules.');
 
 // Exercise actual condition helpers from app.js.
 function chunk(start, end){
