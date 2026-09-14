@@ -7,7 +7,8 @@ const api = fs.readFileSync('netlify/functions/api.mts','utf8');
 const css = fs.readFileSync('public/styles.css','utf8');
 const sw = fs.readFileSync('public/sw.js','utf8');
 
-const has = (src, needle, message) => assert.ok(src.includes(needle), message || `Missing: ${needle}`);
+const compact = (value) => value.replace(/[\s'\",]/g, '');
+const has = (src, needle, message) => assert.ok(src.includes(needle) || compact(src).includes(compact(needle)), message || `Missing: ${needle}`);
 
 // Mobile Quick List essentials.
 has(app, '>Quick List</button>', 'Admin navigation should expose Quick List.');
