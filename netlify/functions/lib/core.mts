@@ -138,13 +138,41 @@ export async function closeExpiredAuctions() {
         const premium = Math.round(hammer * Number(lock.rows[0].buyer_premium_percent || 0) / 100);
         const total = hammer + premium;
         await client.query(
-          "INSERT INTO orders(id,auction_id,user_id,hammer_price_cents,buyer_premium_cents,total_cents,status) VALUES($1,$2,$3,$4,$5,$6,'unpaid') ON CONFLICT(auction_id) DO NOTHING",
-          [id(),row.id,high.user_id,hammer,premium,total]
+          "INSERT INTO orders(id,auction_id,user_id,hammer_price_cents,buyer_premium_cents,total_cents,status,due_at) VALUES($1,$2,$3,$4,$5,$6,'unpaid',NOW()+($7::text||' hours')::interval) ON CONFLICT(auction_id) DO NOTHING",
+          [id(),row.id,high.user_id,hammer,premium,total,Number(lock.rows[0].payment_deadline_hours||2)]
         );
-        await client.query("INSERT INTO notifications(id,user_id,type,message,auction_id) VALUES($1,$2,'won',$3,$4)", [id(),high.user_id,`You won ${lock.rows[0].title} for R${(hammer/100).toFixed(2)}.`,row.id]);
+        await client.query("INSERT INTO notifications(id,user_id,type,message,auction_id) VALUES($1,$2,'won',$3,$4)", [id(),high.user_id,`You won ${lock.rows[0].title}. Pay the full R${(total/100).toFixed(2)} within ${Number(lock.rows[0].payment_deadline_hours||2)} hours to keep the sale.`,row.id]);
       }
       await client.query('COMMIT');
     } catch (e) { await client.query('ROLLBACK'); throw e; }
+    finally { client.release(); }
+  }
+
+  const overdue = await db.sql`SELECT id FROM orders WHERE status IN ('unpaid','pending') AND due_at IS NOT NULL AND due_at<=NOW()`;
+  for (const row of overdue) {
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const orderRes = await client.query("SELECT o.id AS order_id,o.status AS order_status,o.user_id,o.auction_id,o.hammer_price_cents,o.due_at,a.* FROM orders o JOIN auctions a ON a.id=o.auction_id WHERE o.id=$1 FOR UPDATE OF o",[row.id]);
+      const order = orderRes.rows[0];
+      if (!order || !['unpaid','pending'].includes(order.order_status) || !order.due_at || new Date(order.due_at).getTime()>Date.now()) { await client.query('ROLLBACK'); continue; }
+      const relistId=id();
+      const start=new Date(Date.now()+24*60*60*1000);
+      const originalDuration=Math.max(60*60*1000,new Date(order.scheduled_end_at).getTime()-new Date(order.start_at).getTime());
+      const end=new Date(start.getTime()+originalDuration);
+      const relistSlug=`${order.slug}-relisted-${Date.now().toString(36)}`.slice(0,90);
+      await client.query(`INSERT INTO auctions(id,slug,title,category,description,condition_text,status,start_at,scheduled_end_at,current_end_at,soft_close_seconds,opening_bid_cents,bid_increment_cents,reserve_price_cents,reserve_disclosed,buyer_premium_percent,vat_note,payment_deadline_hours,inspection_note,collection_note,storage_fee_note,auctioneer_name,rules_published_at,created_by)
+        VALUES($1,$2,$3,$4,$5,$6,'scheduled',$7,$8,$8,$9,$10,$11,$12,$13,$14,$15,2,$16,$17,$18,$19,NOW(),$20)`,[
+        relistId,relistSlug,order.title,order.category,order.description,order.condition_text,start.toISOString(),end.toISOString(),order.soft_close_seconds,order.opening_bid_cents,order.bid_increment_cents,order.reserve_price_cents,order.reserve_disclosed,order.buyer_premium_percent,order.vat_note,order.inspection_note,order.collection_note,order.storage_fee_note,order.auctioneer_name,order.created_by
+      ]);
+      const images=await client.query("SELECT * FROM auction_images WHERE auction_id=$1 ORDER BY sort_order",[order.auction_id]);
+      for(const image of images.rows) await client.query("INSERT INTO auction_images(id,auction_id,blob_key,content_type,alt_text,sort_order) VALUES($1,$2,$3,$4,$5,$6)",[id(),relistId,image.blob_key,image.content_type,image.alt_text,image.sort_order]);
+      const defaultFee=Math.round(Number(order.hammer_price_cents)*0.10);
+      await client.query("UPDATE orders SET status='defaulted',defaulted_at=NOW(),default_fee_cents=$2,relisted_auction_id=$3,updated_at=NOW() WHERE id=$1",[order.order_id,defaultFee,relistId]);
+      await client.query("UPDATE users SET verified=FALSE WHERE id=$1",[order.user_id]);
+      await client.query("INSERT INTO notifications(id,user_id,type,message,auction_id) VALUES($1,$2,'payment_default',$3,$4)",[id(),order.user_id,`Payment was not received within 2 hours. The sale was cancelled, the lot was relisted and a default charge of up to R${(defaultFee/100).toFixed(2)} applies, subject to the statutory cap.`,order.auction_id]);
+      await client.query('COMMIT');
+    } catch(e) { await client.query('ROLLBACK'); throw e; }
     finally { client.release(); }
   }
 }

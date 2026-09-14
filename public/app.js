@@ -198,15 +198,15 @@ async function auctionPage(id) {
 <div class="bidbox"><div class="label">${a.currentBidCents == null ? "Opening bid" : "Current bid"}</div><div class="price" style="font-size:42px">${randMoney(high)}</div><div class="muted small">${a.bidCount} bid${a.bidCount === 1 ? "" : "s"} · increment ${randMoney(a.bidIncrementCents)}</div><div class="kv"><div><div class="label">${a.status === "scheduled" ? "Starts" : "Time left"}</div><b class="countdown" data-countdown="${esc(a.currentEndAt)}" data-status="${esc(a.status)}">${a.status === "scheduled" ? fmtDate(a.startAt) : countdown(a.currentEndAt, a.status)}</b></div><div><div class="label">Reserve</div><b>${a.reserveDisclosed ? (a.reserveMet ? "Met / not required" : "Not yet met") : "Not disclosed"}</b></div></div>
 <div class="soft-badge"><span>⏱️</span><div><b>Soft close active</b><div class="muted small">Any valid bid in the final ${Math.round(a.softCloseSeconds / 60)} minute${a.softCloseSeconds === 60 ? "" : "s"} restores a full ${Math.round(a.softCloseSeconds / 60)}-minute window. Extensions can repeat.</div></div></div>
 ${myHigh ? '<div class="notice good" style="margin-top:12px">You currently hold the highest bid.</div>' : ""}
-${a.order ? `<div class="notice good" style="margin-top:12px"><b>Winning order</b><br>Total payable: <b>${randMoney(a.order.totalCents)}</b> · ${esc(a.order.status)}${a.order.status !== "paid" ? `<div style="margin-top:10px"><button class="btn btn-primary" id="payNow" ${state.settings.paymentGatewayEnabled ? "" : "disabled"}>${state.settings.paymentGatewayEnabled ? "Pay now" : "Payment gateway coming at launch"}</button></div>` : ""}</div>` : ""}
+${a.order ? `<div class="notice ${a.order.status === "defaulted" ? "bad" : "good"}" style="margin-top:12px"><b>Winning order</b><br>Total payable: <b>${randMoney(a.order.totalCents)}</b> · ${esc(a.order.status)}${a.order.dueAt && ["unpaid","pending"].includes(a.order.status) ? `<div class="small" style="margin-top:6px">Payment deadline: <b>${fmtDate(a.order.dueAt)}</b></div>` : ""}${a.order.status === "defaulted" ? `<div class="small" style="margin-top:6px">Sale cancelled and relisted. Default charge: up to <b>${randMoney(a.order.defaultFeeCents)}</b>, subject to the statutory cap.</div>` : ""}${["unpaid","pending"].includes(a.order.status) ? `<div style="margin-top:10px"><button class="btn btn-primary" id="payNow" ${state.settings.paymentGatewayEnabled ? "" : "disabled"}>${state.settings.paymentGatewayEnabled ? "Pay securely with Yoco" : "Payment gateway coming at launch"}</button></div>` : ""}</div>` : ""}
 ${canBid ? `<div class="bidrow"><input class="input" id="bidAmount" type="number" inputmode="decimal" min="${min / 100}" step="${a.bidIncrementCents / 100}" value="${(min / 100).toFixed(2)}"><button class="btn btn-accent" id="placeBid">Place bid</button></div><div class="small muted" style="margin-top:8px">By placing a bid you accept the auction rules. A bid may be retracted before the sale is completed, subject to the rules.</div>` : bidGate(a)}
 </div><div class="tabs"><button class="tab active" data-tab="details">Details</button><button class="tab" data-tab="bids">Bid history</button><button class="tab" data-tab="rules">Rules</button></div><div id="tabBody">${detailTab(a, "details")}</div></section></div></main>${footer()}`;
 }
 function bidGate(a) {
   if (!state.me)
-    return '<div class="notice" style="margin-top:12px">Sign in and complete bidder registration to bid.</div>';
+    return '<div class="notice" style="margin-top:12px">Sign in, register and complete the R10 Yoco bidder verification to bid.</div>';
   if (!state.me.verified)
-    return '<div class="notice" style="margin-top:12px">Your bidder account is awaiting verification.</div>';
+    return '<div class="notice" style="margin-top:12px">Complete the once-off R10 bidder verification in your account before bidding.</div>';
   if (!state.settings.tradingEnabled)
     return '<div class="notice" style="margin-top:12px">Binding bids are locked during pre-launch mode.</div>';
   if (a.status === "scheduled")
@@ -245,10 +245,10 @@ async function profile() {
   try {
     notes = (await api("me/notifications")).notifications;
   } catch {}
-  return `${header()}<main class="section"><div class="container"><div class="section-head"><div><div class="label">Account</div><h2>${esc(state.me.firstName)} ${esc(state.me.lastName)}</h2></div><button class="btn btn-secondary" id="logoutBtn">Sign out</button></div><div class="detail-grid"><div class="panel"><h3>Bidder status</h3><div class="notice ${state.me.verified ? "good" : ""}">${state.me.verified ? '<span class="badge-dot"></span>Verified to bid' : "Verification pending — the admin must verify your bidder registration before binding bids can be placed."}</div><p><b>Email:</b> ${esc(state.me.email)}</p><p><b>Mobile:</b> ${esc(state.me.mobile || "")}</p><h3>Change password</h3><form id="passwordForm" class="admin-form"><input class="input" type="password" name="currentPassword" placeholder="Current password" required><input class="input" type="password" name="newPassword" minlength="10" placeholder="New password (10+ characters)" required><button class="btn btn-secondary">Change password</button></form></div><div class="panel"><div class="section-head"><h3>Notifications</h3><button class="btn btn-secondary" id="readNotes">Mark read</button></div>${notes.length ? notes.map((n) => `<div style="padding:12px 0;border-bottom:1px solid var(--line)"><b>${esc(n.message)}</b><div class="muted small">${fmtDate(n.created_at)}</div></div>`).join("") : '<div class="muted">No notifications.</div>'}</div></div></div></main>${footer()}`;
+  return `${header()}<main class="section"><div class="container"><div class="section-head"><div><div class="label">Account</div><h2>${esc(state.me.firstName)} ${esc(state.me.lastName)}</h2></div><button class="btn btn-secondary" id="logoutBtn">Sign out</button></div><div class="detail-grid"><div class="panel"><h3>Bidder status</h3><div class="notice ${state.me.verified ? "good" : ""}">${state.me.verified ? '<span class="badge-dot"></span>Verified to bid' : "Complete the once-off R10 Yoco verification payment to activate bidding."}</div>${state.me.verified ? '<p class="muted small">Your bidder verification is active.</p>' : '<button class="btn btn-primary" id="verifyBidder" style="margin-top:12px">Verify me for R10</button><p class="muted small">The R10 verification fee is charged through Yoco and is not a card-saving or automatic-debit instruction.</p>'}<p><b>Email:</b> ${esc(state.me.email)}</p><p><b>Mobile:</b> ${esc(state.me.mobile || "")}</p><h3>Change password</h3><form id="passwordForm" class="admin-form"><input class="input" type="password" name="currentPassword" placeholder="Current password" required><input class="input" type="password" name="newPassword" minlength="10" placeholder="New password (10+ characters)" required><button class="btn btn-secondary">Change password</button></form></div><div class="panel"><div class="section-head"><h3>Notifications</h3><button class="btn btn-secondary" id="readNotes">Mark read</button></div>${notes.length ? notes.map((n) => `<div style="padding:12px 0;border-bottom:1px solid var(--line)"><b>${esc(n.message)}</b><div class="muted small">${fmtDate(n.created_at)}</div></div>`).join("") : '<div class="muted">No notifications.</div>'}</div></div></div></main>${footer()}`;
 }
 function legal() {
-  return `${header()}<main class="section"><div class="container"><div class="section-head"><div><div class="label">Compliance</div><h2>Legal centre</h2></div></div><div class="panel legal-list"><a class="legal-link" target="_blank" href="/legal/privacy-policy.pdf"><div><b>POPIA Privacy Notice & Privacy Policy</b><div class="muted small">Version 1.0 · Effective 12 September 2026</div></div><span>Open PDF ↗</span></a><a class="legal-link" target="_blank" href="/legal/terms-auction-rules.pdf"><div><b>App Terms & Master Rules of Auction</b><div class="muted small">Includes the rolling soft-close rule</div></div><span>Open PDF ↗</span></a><a class="legal-link" target="_blank" href="/legal/live-auction-rules-template.pdf"><div><b>Live Auction Rules Template</b><div class="muted small">Auction-specific schedule and statutory records template</div></div><span>Open PDF ↗</span></a><div class="legal-link"><div><b>PAIA Manual</b><div class="muted small">Available from the Information Officer at rugs.san88@gmail.com. A final web copy will be added when the submitted manual file is supplied to the app repository.</div></div><span>PAIA</span></div></div></div></main>${footer()}`;
+  return `${header()}<main class="section"><div class="container"><div class="section-head"><div><div class="label">Compliance</div><h2>Legal centre</h2></div></div><div class="panel legal-list"><a class="legal-link" target="_blank" href="/legal/privacy-policy.pdf"><div><b>POPIA Privacy Notice & Privacy Policy</b><div class="muted small">Version 1.0 · Effective 12 September 2026</div></div><span>Open PDF ↗</span></a><a class="legal-link" target="_blank" href="/legal/terms-auction-rules.pdf"><div><b>App Terms & Master Rules of Auction</b><div class="muted small">Version 1.1 · R10 verification, 2-hour payment and lawful default cap</div></div><span>Open PDF ↗</span></a><a class="legal-link" target="_blank" href="/legal/live-auction-rules-template.pdf"><div><b>Live Auction Rules Template</b><div class="muted small">Version 1.1 · Auction-specific schedule and payment terms</div></div><span>Open PDF ↗</span></a><div class="legal-link"><div><b>PAIA Manual</b><div class="muted small">Available from the Information Officer at rugs.san88@gmail.com. A final web copy will be added when the submitted manual file is supplied to the app repository.</div></div><span>PAIA</span></div></div></div></main>${footer()}`;
 }
 function installPage() {
   const ios = /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -328,7 +328,7 @@ async function adminAuctions() {
       <details class="advanced-settings"><summary>Advanced settings <span>Optional / unusual lots</span></summary><div class="advanced-body">
         <div class="form-grid"><div class="field"><label>Category</label><input class="input" name="category" value="${esc(val("category", "General"))}"></div><div class="field"><label>Start date/time</label><input class="input" type="datetime-local" name="startAt" required value="${defaultStart}"></div></div>
         <div class="form-grid"><div class="field"><label>Bid increment (R)</label><input class="input" type="number" inputmode="decimal" step="0.01" min="0.01" name="increment" required value="${val("bidIncrementCents") != null ? Number(val("bidIncrementCents")) / 100 : "10.00"}"></div><div class="field"><label>Buyer premium %</label><input class="input" type="number" inputmode="decimal" step="0.01" min="0" name="premium" value="${esc(val("buyerPremiumPercent", 0))}"></div></div>
-        <div class="form-grid"><div class="field"><label>Soft close seconds</label><input class="input" type="number" inputmode="numeric" min="30" max="900" name="softClose" value="${esc(softDefault)}"></div><div class="field"><label>Payment deadline hours</label><input class="input" type="number" inputmode="numeric" min="1" name="paymentHours" value="${esc(val("paymentDeadlineHours", 24))}"></div></div>
+        <div class="form-grid"><div class="field"><label>Soft close seconds</label><input class="input" type="number" inputmode="numeric" min="30" max="900" name="softClose" value="${esc(softDefault)}"></div><div class="field"><label>Payment deadline hours</label><input class="input" type="number" inputmode="numeric" min="1" name="paymentHours" value="${esc(val("paymentDeadlineHours", 2))}"></div></div>
         <div class="field"><label>Appointed auctioneer</label><input class="input" name="auctioneerName" value="${esc(val("auctioneerName"))}" placeholder="Required before publication"></div>
         <div class="field"><label>VAT note</label><input class="input" name="vatNote" value="${esc(val("vatNote", "VAT treatment as displayed for this lot."))}"></div>
         <div class="field"><label>Inspection note</label><input class="input" name="inspectionNote" value="${esc(val("inspectionNote", "Inspection by arrangement before bidding closes."))}"></div>
@@ -808,6 +808,19 @@ async function bind() {
         payNow.disabled = false;
       }
     };
+  const verifyBidder = $("#verifyBidder");
+  if (verifyBidder)
+    verifyBidder.onclick = async () => {
+      verifyBidder.disabled = true;
+      try {
+        const d = await api("me/verification/checkout", { method: "POST" });
+        if (d.redirectUrl) location.href = d.redirectUrl;
+        else toast(d.message || "Bidder verification is already complete.");
+      } catch (e) {
+        toast(e.message, true);
+        verifyBidder.disabled = false;
+      }
+    };
   const pb = $("#placeBid");
   if (pb)
     pb.onclick = async () => {
@@ -1118,7 +1131,7 @@ async function saveAuction(e) {
     softCloseSeconds: Number(
       f.get("softClose") || state.settings.softCloseSeconds || 120,
     ),
-    paymentDeadlineHours: Number(f.get("paymentHours") || 24),
+    paymentDeadlineHours: Number(f.get("paymentHours") || 2),
     auctioneerName: f.get("auctioneerName"),
     vatNote: f.get("vatNote"),
     inspectionNote: f.get("inspectionNote"),

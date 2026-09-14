@@ -14,6 +14,8 @@ export type CheckoutInput = {
   returnUrl: string;
   cancelUrl: string;
   notifyUrl: string;
+  purpose?: 'auction-payment' | 'bidder-verification';
+  verificationId?: string;
 };
 
 export type CheckoutResult = {
@@ -45,7 +47,9 @@ export async function createCheckout(input: CheckoutInput): Promise<CheckoutResu
       metadata: {
         orderId: input.orderId,
         auctionId: input.auctionId,
-        userId: input.userId
+        userId: input.userId,
+        purpose: input.purpose || 'auction-payment',
+        verificationId: input.verificationId || ''
       }
     })
   });

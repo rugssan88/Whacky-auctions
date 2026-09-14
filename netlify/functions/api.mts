@@ -153,7 +153,7 @@ async function auctionDto(
       a.reserve_price_cents == null ? null : Number(a.reserve_price_cents);
   if (userId && high?.user_id === userId && a.status === "closed") {
     const orders =
-      await db.sql`SELECT status,total_cents,hammer_price_cents,buyer_premium_cents,payment_reference,paid_at
+      await db.sql`SELECT status,total_cents,hammer_price_cents,buyer_premium_cents,payment_reference,paid_at,due_at,default_fee_cents,relisted_auction_id
                                 FROM orders WHERE auction_id=${a.id} AND user_id=${userId} LIMIT 1`;
     if (orders[0])
       payload.order = {
@@ -163,6 +163,9 @@ async function auctionDto(
         buyerPremiumCents: Number(orders[0].buyer_premium_cents),
         paymentReference: orders[0].payment_reference,
         paidAt: orders[0].paid_at,
+        dueAt: orders[0].due_at,
+        defaultFeeCents: orders[0].default_fee_cents == null ? null : Number(orders[0].default_fee_cents),
+        relistedAuctionId: orders[0].relisted_auction_id,
       };
   }
   if (includeBids) {
@@ -306,7 +309,7 @@ async function handle(req: Request) {
       {
         me: safeUser(u),
         message:
-          "Account created. Bidding activates after bidder verification.",
+          "Account created. Complete the once-off R10 Yoco bidder verification to activate bidding.",
       },
       201,
       { "set-cookie": cookie },
@@ -360,6 +363,33 @@ async function handle(req: Request) {
     const cookie = await createSession(u.id);
     await audit(u.id, "change_password", "user", u.id, {}, req);
     return ok({ message: "Password changed." }, 200, { "set-cookie": cookie });
+  }
+
+  if (method === "GET" && parts[0] === "me" && parts[1] === "verification") {
+    const u = await requireUser(req);
+    const latest = (await db.sql`SELECT status,amount_cents,paid_at,created_at FROM bidder_verification_payments WHERE user_id=${u.id} ORDER BY created_at DESC LIMIT 1`)[0] || null;
+    return ok({ verified: !!u.verified, amountCents: 1000, latest });
+  }
+
+  if (method === "POST" && parts[0] === "me" && parts[1] === "verification" && parts[2] === "checkout") {
+    const u = await requireUser(req);
+    if (u.verified) return ok({ verified: true, message: "Your bidder account is already verified." });
+    const settings = await getSettings();
+    if (!settings.payment_gateway_enabled) return fail("Yoco bidder verification is not available yet.",503);
+    const outstanding = await db.sql`SELECT 1 FROM orders WHERE user_id=${u.id} AND status='defaulted' AND COALESCE(default_fee_cents,0)>0 LIMIT 1`;
+    if (outstanding.length) return fail("Your bidder account has an outstanding default charge. Please contact Whacky Auctions before re-verification.",403);
+    const verificationId=id();
+    await db.sql`INSERT INTO bidder_verification_payments(id,user_id,amount_cents,status) VALUES(${verificationId},${u.id},1000,'pending')`;
+    const base=new URL(req.url).origin;
+    try {
+      const checkout=await createCheckout({orderId:verificationId,auctionId:"bidder-verification",userId:u.id,email:u.email,amountCents:1000,description:"Whacky Auctions bidder verification",returnUrl:`${base}/profile?verification=return`,cancelUrl:`${base}/profile?verification=cancelled`,notifyUrl:`${base}/api/payments/webhook`,purpose:"bidder-verification",verificationId});
+      await db.sql`UPDATE bidder_verification_payments SET payment_reference=${checkout.providerReference||null},updated_at=NOW() WHERE id=${verificationId}`;
+      await audit(u.id,"bidder_verification_checkout_started","verification",verificationId,{amountCents:1000},req);
+      return ok({redirectUrl:checkout.redirectUrl,amountCents:1000});
+    } catch(e:any) {
+      await db.sql`UPDATE bidder_verification_payments SET status='failed',updated_at=NOW() WHERE id=${verificationId}`;
+      return fail(e?.message||"Bidder verification payment could not be started.",e?.status||503);
+    }
   }
 
   if (method === "GET" && parts[0] === "auctions" && parts.length === 1)
@@ -716,6 +746,20 @@ async function handle(req: Request) {
             { provider: "yoco", eventId: event.id, checkoutId },
             req,
           );
+        }
+      } else {
+        const verification = (
+          await db.sql`SELECT * FROM bidder_verification_payments WHERE payment_reference=${String(checkoutId)} LIMIT 1`
+        )[0];
+        if (verification) {
+          if (Number(verification.amount_cents) !== amountCents || amountCents !== 1000)
+            return fail("Yoco payment amount does not match the R10 bidder-verification fee.",400,{code:"YOCO_VERIFICATION_AMOUNT_MISMATCH"});
+          if (verification.status !== "paid") {
+            await db.sql`UPDATE bidder_verification_payments SET status='paid',paid_at=COALESCE(paid_at,NOW()),updated_at=NOW() WHERE id=${verification.id}`;
+            await db.sql`UPDATE users SET verified=TRUE WHERE id=${verification.user_id} AND suspended=FALSE`;
+            await db.sql`INSERT INTO notifications(id,user_id,type,message) VALUES(${id()},${verification.user_id},'bidder_verified','Your R10 bidder verification is complete. You may bid when auctions open.')`;
+            await audit(verification.user_id,"bidder_verification_paid","verification",verification.id,{provider:"yoco",eventId:event.id,checkoutId,amountCents},req);
+          }
         }
       }
     }

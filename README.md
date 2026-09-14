@@ -9,7 +9,7 @@ The platform is intentionally locked for binding trade. Browsing, bidder registr
 1. A current SAPS second-hand-goods dealer registration recorded in the Admin dashboard.
 2. A connected payment gateway.
 
-The payment provider is the only external commerce integration left intentionally blank. Implement it in `netlify/functions/lib/payment-gateway.mts`, add its webhook verification, then set Netlify `PAYMENT_GATEWAY_ENABLED=true`. After both launch requirements are recorded, the Admin dashboard exposes the final trading switch.
+Yoco Checkout is integrated for a once-off R10 bidder-verification fee and winning-order payments. A verified Yoco webhook activates the bidder only after the R10 payment succeeds. Winning orders default to a 2-hour payment deadline; overdue unpaid orders are cancelled, the bidder loses verification, the lot is scheduled for relisting after the required notice period, and any default charge remains subject to the statutory cap. Set `YOCO_SECRET_KEY`, register the Yoco webhook from Admin, and set `PAYMENT_GATEWAY_ENABLED=true`. The final trading switch still requires the SAPS registration to be recorded.
 
 ## Soft close
 

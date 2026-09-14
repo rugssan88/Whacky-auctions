@@ -24,7 +24,7 @@ has(css, 'font-size:16px', 'Phone input sizing should avoid tiny controls / iOS 
 
 // Existing defaults remain represented in Quick List advanced settings.
 has(app, "state.settings.softCloseSeconds||120", 'Soft-close default must continue to use the existing setting / 120 seconds.');
-has(app, "paymentDeadlineHours:Number(f.get('paymentHours')||24)", '24-hour payment default changed.');
+has(app, "paymentDeadlineHours:Number(f.get('paymentHours')||2)", '2-hour payment default changed.');
 has(app, 'Inspection by arrangement before bidding closes.', 'Inspection default changed.');
 has(app, 'Collection arrangements will be shown to the winning bidder.', 'Collection default changed.');
 has(app, 'Storage charges may apply after the collection deadline where lawfully disclosed.', 'Storage-fee wording changed.');
@@ -50,7 +50,10 @@ has(api, "new Date(now+Number(a.soft_close_seconds)*1000).toISOString()", 'Soft-
 has(api, "if(!settings.dealer_registration_confirmed)", 'SAPS/dealer registration publication lock missing.');
 has(api, "if(!settings.trading_enabled)", 'Trading launch lock missing.');
 has(api, "if(!settings.payment_gateway_enabled)", 'Payment-gateway publication lock missing.');
-has(sw, "whacky-v2-quick-list", 'Service-worker cache version was not bumped for the Quick List release.');
+has(api, 'bidder_verification_checkout_started', 'R10 bidder-verification checkout route missing.');
+has(api, 'amountCents:1000', 'R10 verification amount changed.');
+has(app, 'Verify me for R10', 'Bidder verification call-to-action missing.');
+has(sw, "whacky-v3-bidder-verification", 'Service-worker cache version was not bumped for bidder verification.');
 
 // Exercise actual condition helpers from app.js.
 function chunk(start, end){
