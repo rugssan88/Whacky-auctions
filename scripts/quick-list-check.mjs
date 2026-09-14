@@ -54,7 +54,7 @@ has(api, "if(!settings.payment_gateway_enabled)", 'Payment-gateway publication l
 has(api, 'bidder_verification_checkout_started', 'R10 bidder-verification checkout route missing.');
 has(api, 'amountCents:1000', 'R10 verification amount changed.');
 has(app, 'Verify me for R10', 'Bidder verification call-to-action missing.');
-has(sw, "whacky-v4-standard-rules-2026", 'Service-worker cache version was not bumped for the 2026 standard rules.');
+has(sw, "whacky-v5-standard-rules-pdf", 'Service-worker cache version was not bumped for the 2026 standard rules PDF.');
 
 // Exercise actual condition helpers from app.js.
 function chunk(start, end){
