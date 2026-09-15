@@ -276,6 +276,62 @@ select {
   object-fit: cover;
   display: block;
 }
+.preview-section {
+  padding-bottom: 32px;
+  background: linear-gradient(180deg, rgba(245, 202, 90, 0.035), transparent);
+}
+.preview-intro {
+  max-width: 760px;
+  margin: -6px 0 20px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.preview-grid {
+  grid-template-columns: repeat(6, 1fr);
+}
+.preview-card {
+  grid-column: span 2;
+}
+.preview-card:nth-child(4),
+.preview-card:nth-child(5) {
+  grid-column: span 3;
+}
+.preview-images {
+  height: 224px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  position: relative;
+  overflow: hidden;
+  background: #211914;
+}
+.preview-images img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.preview-chip {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  color: #241607;
+  background: rgba(245, 202, 90, 0.94);
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.3);
+}
+.preview-condition {
+  min-height: 44px;
+  margin: 10px 0 14px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.preview-status {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 850;
+}
 .chip {
   display: inline-flex;
   padding: 6px 9px;
@@ -1337,12 +1393,20 @@ body { background: radial-gradient(circle at 12% 0%, rgba(230,95,53,.15), transp
   .hero-grid,.join-grid { grid-template-columns: 1fr; }
   .launch-card { max-width: none; }
   .steps > div { padding-inline: 14px; }
+  .preview-card,
+  .preview-card:nth-child(4),
+  .preview-card:nth-child(5) { grid-column: span 3; }
 }
 @media (max-width: 620px) {
   .hero { padding: 42px 0 32px; }
   .hero h1,.join-copy h1 { font-size: clamp(38px,12vw,50px); }
   .hero-actions { display: grid; }
   .hero-actions .btn { width: 100%; }
+  .preview-grid { grid-template-columns: 1fr; }
+  .preview-card,
+  .preview-card:nth-child(4),
+  .preview-card:nth-child(5) { grid-column: auto; }
+  .preview-images { height: 205px; }
   .steps { grid-template-columns: 1fr; padding-block: 12px; }
   .steps > div { border-right: 0; border-bottom: 1px solid var(--line); padding: 14px 4px; }
   .steps > div:last-child { border-bottom: 0; }

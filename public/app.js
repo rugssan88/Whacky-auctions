@@ -31,6 +31,44 @@ const fmtDate = (d) =>
     timeStyle: "short",
   }).format(new Date(d));
 const now = () => Date.now() + state.serverOffset;
+const PREVIEW_ITEMS = [
+  {
+    title: "Printer & craft-printing bundle",
+    category: "Creative equipment",
+    condition: "Pre-owned; contents and operation untested. Supplied as photographed.",
+    images: ["/previews/printer-bundle-1.webp", "/previews/printer-bundle-2.webp"],
+  },
+  {
+    title: "Pair of decorative copper pots",
+    category: "Home & décor",
+    condition: "Pre-owned with visible age-related marks and interior oxidation/patina.",
+    images: ["/previews/copper-pots-1.webp", "/previews/copper-pots-2.webp"],
+  },
+  {
+    title: "Nesty GR55 TWS portable speaker",
+    category: "Audio",
+    condition: "Pre-owned with visible cosmetic marks; operation untested.",
+    images: ["/previews/nesty-speaker-1.webp", "/previews/nesty-speaker-2.webp"],
+  },
+  {
+    title: "Nike Tiempo-branded football boots",
+    category: "Sport",
+    condition: "Pre-owned with visible wear and creasing, including to the soles/studs; authenticity not independently verified.",
+    images: ["/previews/nike-tiempo-1.webp", "/previews/nike-tiempo-2.webp"],
+  },
+  {
+    title: "Kaufmann 16L backpack sprayer",
+    category: "Garden & outdoor",
+    condition: "Pre-owned with visible surface marks; operation untested.",
+    images: ["/previews/kaufmann-sprayer-1.webp", "/previews/kaufmann-sprayer-2.webp"],
+  },
+];
+function previewCard(item) {
+  return `<article class="card preview-card">
+    <div class="preview-images">${item.images.map((src, i) => `<img loading="lazy" src="${esc(src)}" alt="${esc(item.title)} — view ${i + 1}">`).join("")}<span class="chip preview-chip">Sneak peek</span></div>
+    <div class="card-body"><div class="label">${esc(item.category)}</div><h3 class="card-title">${esc(item.title)}</h3><p class="preview-condition">${esc(item.condition)}</p><div class="preview-status">Coming to Whacky · Not open for bidding</div></div>
+  </article>`;
+}
 function toast(msg, error = false) {
   const t = $("#toast");
   t.textContent = msg;
@@ -157,8 +195,9 @@ async function home() {
     up = auctions.filter((a) => a.status === "scheduled"),
     ended = auctions.filter((a) => ["closed", "unsold"].includes(a.status));
   return `${header()}${launchNotice()}<main>
-<section class="hero"><div class="container hero-grid"><div><span class="eyebrow">🇿🇦 South Africa's delightfully different auction room</span><h1>Unexpected finds.<br><span class="grad">Proper bargains.</span></h1><p>Honest condition notes, sensible opening bids and a fair two-minute soft close. No auction-day panic. No last-second skelm moves.</p><div class="hero-actions"><a class="btn btn-primary" href="/join" data-link>Get early access</a><a class="btn btn-secondary" href="#auctions">Preview the goods</a></div><div class="hero-proof"><span>✓ Free to join</span><span>✓ 18+ bidders</span><span>✓ Secure Yoco payments</span></div></div><aside class="launch-card"><div class="fair-icon">⏱</div><div><div class="label">Fair-play built in</div><h3>Two minutes to answer</h3><div class="mini">A valid bid in the final two minutes restores the full window. It keeps extending until the bidding genuinely stops.</div></div><div class="softclose"><b>No sneaky sniping, china.</b><div class="mini">Everyone gets a fair shot.</div></div></aside></div></section>
+<section class="hero"><div class="container hero-grid"><div><span class="eyebrow">🇿🇦 South Africa's delightfully different auction room</span><h1>Unexpected finds.<br><span class="grad">Proper bargains.</span></h1><p>Honest condition notes, sensible opening bids and a fair two-minute soft close. No auction-day panic. No last-second skelm moves.</p><div class="hero-actions"><a class="btn btn-primary" href="/join" data-link>Get early access</a><a class="btn btn-secondary" href="#previews">Preview the goods</a></div><div class="hero-proof"><span>✓ Free to join</span><span>✓ 18+ bidders</span><span>✓ Secure Yoco payments</span></div></div><aside class="launch-card"><div class="fair-icon">⏱</div><div><div class="label">Fair-play built in</div><h3>Two minutes to answer</h3><div class="mini">A valid bid in the final two minutes restores the full window. It keeps extending until the bidding genuinely stops.</div></div><div class="softclose"><b>No sneaky sniping, china.</b><div class="mini">Everyone gets a fair shot.</div></div></aside></div></section>
 <section class="how-strip"><div class="container steps"><div><span>1</span><b>Join early</b><small>Get launch alerts first</small></div><div><span>2</span><b>Browse honestly</b><small>Photos and condition notes</small></div><div><span>3</span><b>Bid fairly</b><small>Soft close protects your chance</small></div></div></section>
+<section id="previews" class="section preview-section"><div class="container"><div class="section-head"><div><div class="label">A taste of what’s coming</div><h2>Fresh peeks. Zero pretend.</h2></div><div class="muted">5 preview items</div></div><p class="preview-intro">Real Whacky stock photographed as it stands. These are previews only; final lot descriptions, condition notes and auction terms will apply when each item is published.</p><div class="grid preview-grid">${PREVIEW_ITEMS.map(previewCard).join("")}</div></div></section>
 <section id="auctions" class="section"><div class="container"><div class="section-head"><div><div class="label">Marketplace</div><h2>${live.length ? "Live auctions" : up.length ? "Upcoming auctions" : "Auctions"}</h2></div><div class="muted">${auctions.length} lot${auctions.length === 1 ? "" : "s"}</div></div>${auctions.length ? `<div class="grid">${[...live, ...up, ...ended].map(card).join("")}</div>` : `<div class="empty"><h3>Stock is being prepared.</h3><p>Auctions created in the admin dashboard will appear here when published.</p></div>`}</div></section></main>${footer()}`;
 }
 
