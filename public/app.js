@@ -111,6 +111,7 @@ function route() {
   return path === "join" ? "home" : path;
 }
 function go(path) {
+  closeModal();
   history.pushState({}, "", path.startsWith("/") ? path : "/" + path);
   render();
   scrollTo({ top: 0, behavior: "smooth" });
@@ -169,7 +170,10 @@ function applySeo(r) {
   seoMeta('meta[name="twitter:title"]', { name: "twitter:title", content: page.title });
   seoMeta('meta[name="twitter:description"]', { name: "twitter:description", content: page.description });
 }
-window.addEventListener("popstate", render);
+window.addEventListener("popstate", () => {
+  closeModal();
+  render();
+});
 document.addEventListener("click", (e) => {
   const a = e.target.closest("[data-link]");
   if (a) {
