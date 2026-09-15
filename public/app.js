@@ -115,6 +115,60 @@ function go(path) {
   render();
   scrollTo({ top: 0, behavior: "smooth" });
 }
+const SEO_BASE = "https://www.whackyauctions.co.za";
+function seoMeta(selector, attrs) {
+  let el = document.head.querySelector(selector);
+  if (!el) {
+    el = document.createElement("meta");
+    document.head.appendChild(el);
+  }
+  for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, value);
+}
+function applySeo(r) {
+  if (location.pathname.replace(/\/$/, "") === "/join") r = "join";
+  const pages = {
+    home: {
+      title: "Whacky Auctions | Online Auctions South Africa",
+      description: "Browse honest online auctions in South Africa with real item photos, clear condition notes, sensible opening bids and a fair two-minute soft close.",
+      path: "/",
+    },
+    join: {
+      title: "Join Whacky Auctions Early Access",
+      description: "Join the Whacky Auctions early-access list for first looks, launch alerts and upcoming online auctions in South Africa.",
+      path: "/join",
+    },
+    legal: {
+      title: "How Whacky Auctions Works | Rules & Buyer Information",
+      description: "Learn how Whacky Auctions works, including honest condition disclosures, bidding, soft-close rules, payments and collection in South Africa.",
+      path: "/legal",
+    },
+    install: {
+      title: "Install the Whacky Auctions App",
+      description: "Install Whacky Auctions on Android, iPhone or desktop for quick access to upcoming South African online auctions.",
+      path: "/install",
+    },
+  };
+  const privateRoute = ["admin", "admin-setup", "my-bids", "watchlist", "wins", "profile"].includes(r) || r.startsWith("rules/");
+  const page = pages[r] || (r.startsWith("auction/") && state.seoAuction
+    ? state.seoAuction
+    : {
+        title: "Whacky Auctions",
+        description: "South African online auctions with real photos and honest condition notes.",
+        path: location.pathname,
+      });
+  const canonical = SEO_BASE + page.path;
+  document.title = page.title;
+  seoMeta('meta[name="description"]', { name: "description", content: page.description });
+  seoMeta('meta[name="robots"]', { name: "robots", content: privateRoute ? "noindex,nofollow" : "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" });
+  const canonicalLink = document.head.querySelector('link[rel="canonical"]');
+  if (canonicalLink) canonicalLink.href = canonical;
+  seoMeta('meta[property="og:title"]', { property: "og:title", content: page.title });
+  seoMeta('meta[property="og:description"]', { property: "og:description", content: page.description });
+  seoMeta('meta[property="og:url"]', { property: "og:url", content: canonical });
+  seoMeta('meta[property="og:type"]', { property: "og:type", content: r.startsWith("auction/") ? "product" : "website" });
+  seoMeta('meta[name="twitter:title"]', { name: "twitter:title", content: page.title });
+  seoMeta('meta[name="twitter:description"]', { name: "twitter:description", content: page.description });
+}
 window.addEventListener("popstate", render);
 document.addEventListener("click", (e) => {
   const a = e.target.closest("[data-link]");
@@ -217,6 +271,11 @@ async function auctionPage(id) {
     return `${header()}<main class="section"><div class="container"><div class="notice bad">${esc(e.message)}</div></div></main>${footer()}`;
   }
   const a = d.auction;
+  state.seoAuction = {
+    title: `${a.title} | Whacky Auctions`,
+    description: `${a.condition}. ${a.description || "View this South African online auction, photographs and bidding details."}`.replace(/\s+/g, " ").slice(0, 158),
+    path: `/auction/${a.id}`,
+  };
   const imgs = a.images || [];
   const main = imgs[0]?.url;
   const high = a.currentBidCents ?? a.openingBidCents;
@@ -1238,6 +1297,7 @@ async function render() {
     html = errorPage(e.message || "Something went wrong.");
   }
   app.innerHTML = html;
+  applySeo(r);
   await bind();
   tick();
 }

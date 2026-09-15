@@ -26,6 +26,16 @@
   [headers.values]
     Content-Type = "application/manifest+json"
 
+[[headers]]
+  for = "/previews/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/icons/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

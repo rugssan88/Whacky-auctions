@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin
+Disallow: /admin-setup
+Disallow: /my-bids
+Disallow: /watchlist
+Disallow: /wins
+Disallow: /profile
+
+Sitemap: https://www.whackyauctions.co.za/sitemap.xml
