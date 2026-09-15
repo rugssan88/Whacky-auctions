@@ -35,31 +35,31 @@ const PREVIEW_ITEMS = [
   {
     title: "Printer & craft-printing bundle",
     category: "Creative equipment",
-    condition: "Pre-owned; contents and operation untested. Supplied as photographed.",
+    condition: "A colourful setup for personalised gifts and crafts—printer, press, inks, blanks and designs included as pictured. Untested.",
     images: ["/previews/printer-bundle-1.webp", "/previews/printer-bundle-2.webp"],
   },
   {
     title: "Pair of decorative copper pots",
     category: "Home & décor",
-    condition: "Pre-owned with visible age-related marks and interior oxidation/patina.",
+    condition: "A striking handled copper pair with loads of old-school charm. Visible age marks and interior oxidation/patina; sold as pictured.",
     images: ["/previews/copper-pots-1.webp", "/previews/copper-pots-2.webp"],
   },
   {
     title: "Nesty GR55 TWS portable speaker",
     category: "Audio",
-    condition: "Tested and working. Pre-owned with visible cosmetic marks.",
+    condition: "Portable boombox with carry handle plus USB, AUX and TF inputs. Tested and working, with visible cosmetic marks.",
     images: ["/previews/nesty-speaker-1.webp", "/previews/nesty-speaker-2.webp"],
   },
   {
     title: "Nike Tiempo-branded football boots",
     category: "Sport",
-    condition: "Pre-owned with visible wear and creasing, including to the soles/studs; authenticity not independently verified.",
+    condition: "Bold red-and-black football boots for the next kick-about. Used with creasing and sole/stud wear; authenticity not independently verified.",
     images: ["/previews/nike-tiempo-1.webp", "/previews/nike-tiempo-2.webp"],
   },
   {
     title: "Kaufmann 16L backpack sprayer",
     category: "Garden & outdoor",
-    condition: "Pre-owned with visible surface marks; operation untested.",
+    condition: "Handy 16L backpack sprayer with hose, wand and straps for garden or property work. Used with surface marks; untested.",
     images: ["/previews/kaufmann-sprayer-1.webp", "/previews/kaufmann-sprayer-2.webp"],
   },
 ];
