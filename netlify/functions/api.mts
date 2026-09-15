@@ -876,8 +876,20 @@ async function handle(req: Request) {
     const admin = await requireAdmin(req);
     if (method === "GET" && parts[1] === "dashboard") {
       await closeExpiredAuctions();
-      const [users, auctions, bids, pending, earlyAccess] = await Promise.all([
+      const [
+        users,
+        registeredBidders,
+        verifiedBidders,
+        signupsToday,
+        auctions,
+        bids,
+        pending,
+        earlyAccess,
+      ] = await Promise.all([
         db.sql`SELECT COUNT(*)::int c FROM users`,
+        db.sql`SELECT COUNT(*)::int c FROM users WHERE role='bidder'`,
+        db.sql`SELECT COUNT(*)::int c FROM users WHERE role='bidder' AND verified=TRUE AND suspended=FALSE`,
+        db.sql`SELECT COUNT(*)::int c FROM users WHERE role='bidder' AND created_at >= (date_trunc('day', NOW() AT TIME ZONE 'Africa/Johannesburg') AT TIME ZONE 'Africa/Johannesburg')`,
         db.sql`SELECT COUNT(*)::int c FROM auctions`,
         db.sql`SELECT COUNT(*)::int c FROM bids WHERE retracted_at IS NULL`,
         db.sql`SELECT COUNT(*)::int c FROM users WHERE role='bidder' AND verified=FALSE AND suspended=FALSE`,
@@ -886,6 +898,9 @@ async function handle(req: Request) {
       return ok({
         stats: {
           users: users[0].c,
+          registeredBidders: registeredBidders[0].c,
+          verifiedBidders: verifiedBidders[0].c,
+          signupsToday: signupsToday[0].c,
           auctions: auctions[0].c,
           bids: bids[0].c,
           pendingVerification: pending[0].c,
