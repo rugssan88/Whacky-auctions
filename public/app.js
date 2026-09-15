@@ -47,7 +47,7 @@ const PREVIEW_ITEMS = [
   {
     title: "Nesty GR55 TWS portable speaker",
     category: "Audio",
-    condition: "Pre-owned with visible cosmetic marks; operation untested.",
+    condition: "Tested and working. Pre-owned with visible cosmetic marks.",
     images: ["/previews/nesty-speaker-1.webp", "/previews/nesty-speaker-2.webp"],
   },
   {
