@@ -1442,3 +1442,56 @@ html{background:var(--bg);color:var(--ink)}body{background:radial-gradient(circl
 .modal .x{background:#efe1d2;color:#251b16;border-color:#d9c5ae}
 .modal .tab{color:#6f5d50}
 .modal .tab.active{color:#251b16}
+
+
+/* Complete light-theme contrast pass — public, account and admin surfaces */
+body,button,input,textarea,select{color:var(--ink)}
+.card-title,.price,.section h2,.panel h2,.panel h3,.detail h1,.stat b,.inventory-item b,.rules-sheet b{color:var(--ink)}
+.countdown{color:#7c2d22}
+.field label,.quick-field-head label{color:#4f3d31}
+.input::placeholder,.textarea::placeholder{color:#8b7869;opacity:1}
+.input:focus,.textarea:focus,.select:focus{border-color:#bc3f2f;box-shadow:0 0 0 3px rgba(188,63,47,.13)}
+.chip{background:#eadcca;color:#4f3d31;border:1px solid #cfb89f}
+.chip.live{background:#dcefe5;color:#17613f;border-color:#9bcbb2}
+.chip.scheduled{background:#dceaf3;color:#204f70;border-color:#abc7d9}
+.chip.closed{background:#e8e2dc;color:#574c45;border-color:#c9beb5}
+.chip.unsold{background:#f4e1d7;color:#873d29;border-color:#dbb29f}
+.card-img .chip{background:rgba(255,250,242,.94);color:#3e3027;border-color:#d9c5ae}
+.notice.good{border-color:#9ccbb3;background:#e1f1e8;color:#195f40}
+.notice.bad{border-color:#deb0b4;background:#f8e3e5;color:#8b2630}
+.main-photo,.thumb,.quick-photo-img,.inventory-thumb{background:#eadcca}
+.main-photo img{background:#f1e6d8}
+.bidbox{background:linear-gradient(160deg,#fff7eb,#efe0cc);border-color:#d9c5ae}
+.soft-badge{background:#f5e8dc;border-color:#ddc6b0;color:#4c3a2f}
+.kv div{background:#f5eadc;border-color:#d9c5ae;color:var(--ink)}
+.tab{background:#f6ecdf;color:#6f5d50;border-color:#d9c5ae}
+.tab.active{background:#315c52;color:#fff;border-color:#315c52}
+.table-wrap{background:#fffaf2}
+th,td{border-bottom-color:#dfceba;color:#34271f}
+th{color:#5d493c;background:#eadcca}
+tbody tr:nth-child(even){background:#fcf4e9}
+.stat{background:#f1e4d5;border-color:#d9c5ae}
+.side button{background:#fffaf2;border-color:#d9c5ae;color:#5d493c}
+.side button:hover{background:#f0e1d0;color:#251b16}
+.side button.active{background:#315c52;color:#fff;border-color:#315c52}
+.legal-link{background:#fffdf8;color:#251b16;border-color:#d9c5ae}
+.empty{border-color:#cbb59c;color:#6f5d50}
+.toast{background:#315c52;border-color:#24473f;color:#fff}
+.toast.error{background:#8b2630;border-color:#6f1e26;color:#fff}
+.install-banner{background:#315c52;border-color:#24473f;color:#fff}
+.install-banner p{color:#e3eee9}
+.quick-list-panel,.inventory-panel{color:var(--ink)}
+.photo-count{color:#5d493c;background:#efe1d2;border-color:#d9c5ae}
+.quick-photo-section{border-color:#d9c5ae;background:linear-gradient(145deg,#fffaf2,#efe1d2)}
+.quick-photo-empty{border-color:#cbb59c;color:#6f5d50}
+.quick-photo-card{border-color:#d9c5ae;background:#fffaf2}
+.quick-photo-controls button{border-color:#cdb79e;background:#efe1d2;color:#35271f}
+.quick-photo-controls .photo-remove{background:#f8e3e5;color:#8b2630;border-color:#deb0b4}
+.advanced-settings{border-color:#d9c5ae;background:#fffaf2;color:var(--ink)}
+.advanced-settings summary:after{color:#8d3b2e}
+.sticky-save{background:linear-gradient(180deg,rgba(246,239,228,0),rgba(246,239,228,.96) 26%,rgba(246,239,228,.99))}
+.inventory-item{border-color:#d9c5ae;background:#fffaf2;color:var(--ink)}
+.quick-confirm-icon{background:#e1f1e8;border-color:#9ccbb3;color:#195f40}
+.switch{color:#4f3d31}
+.rules-sheet,.legal-list,.admin-layout{color:var(--ink)}
+hr{border-color:#d9c5ae!important}
