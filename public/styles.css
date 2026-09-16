@@ -1432,3 +1432,13 @@ html{background:var(--bg);color:var(--ink)}body{background:radial-gradient(circl
 .footer{background:#203f39;color:#fff9ef;border-top:0}.footer::before{content:"";display:block;height:6px;background:repeating-linear-gradient(90deg,#bc3f2f 0 44px,#e9b949 44px 88px,#f6efe4 88px 98px)}
 .footer .muted,.footer a{color:#d8e4df}.input,.textarea,.select{background:#fffdf8;color:var(--ink);border-color:var(--line)}.join-panel{background:linear-gradient(155deg,#fffaf2,#eddfce)}.notice{background:#f0e3d3;color:var(--ink);border-color:var(--line)}
 @media (prefers-color-scheme:dark){:root{color-scheme:light}}
+
+
+/* Mobile menu contrast fix */
+.modal{background:#fffaf2;color:#251b16;border-color:#d9c5ae;box-shadow:0 30px 90px rgba(48,29,18,.28)}
+.modal .legal-link{background:#fffdf8;color:#251b16;border-color:#d9c5ae}
+.modal .legal-link:hover{background:#efe1d2}
+.modal .legal-link .muted{color:#6f5d50}
+.modal .x{background:#efe1d2;color:#251b16;border-color:#d9c5ae}
+.modal .tab{color:#6f5d50}
+.modal .tab.active{color:#251b16}
