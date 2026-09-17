@@ -5,9 +5,10 @@ const app = fs.readFileSync("public/app.js", "utf8");
 const api = fs.readFileSync("netlify/functions/api.mts", "utf8");
 
 for (const required of [
-  'href="/register"',
-  'function bidderSignupPage()',
-  'else if (r === "register") html = bidderSignupPage()',
+  'id="early-access"',
+  'function earlyAccessForm()',
+  'href="/join"',
+  'go("/profile")',
   'name="firstName"',
   'name="lastName"',
   'name="mobile"',
@@ -16,6 +17,11 @@ for (const required of [
   "Verification status",
   "Admin controls",
 ]) assert.ok(app.includes(required), `Missing bidder-flow requirement: ${required}`);
+
+assert.ok(!app.includes('href="/register"'), "Public navigation must not link directly to bidder verification.");
+assert.ok(!app.includes('function bidderSignupPage()'), "Standalone verified-bidder signup page must be removed.");
+assert.ok(app.includes('id="verifyBidder"'), "R10 verification action must remain on the account page.");
+assert.ok(app.includes('Activate verified bidder status — R10'), "The account page must clearly display the R10 activation price.");
 
 const formStart = app.indexOf("function registerForm()");
 const formEnd = app.indexOf("function bindAuth()", formStart);
