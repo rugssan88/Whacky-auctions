@@ -36,7 +36,7 @@ const PREVIEW_ITEMS = [
     title: "Printer & craft-printing bundle",
     category: "Creative equipment",
     condition: "A colourful setup for personalised gifts and crafts—printer, press, inks, blanks and designs included as pictured. Untested.",
-    openingBidCents: 260000,
+    openingBidCents: 90000,
     images: ["/previews/printer-bundle-1.webp", "/previews/printer-bundle-2.webp"],
   },
   {
