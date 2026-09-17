@@ -23,7 +23,6 @@ import {
   closeExpiredAuctions,
   safeUser,
   asCents,
-  isAdult,
   getClientIp,
   sha256,
 } from "./lib/core.mts";
@@ -296,12 +295,10 @@ async function handle(req: Request) {
       !clean(b.firstName, 80) ||
       !clean(b.lastName, 80) ||
       !clean(b.mobile, 40) ||
-      !clean(b.idNumber, 80) ||
-      !clean(b.physicalAddress, 500)
+      !clean(b.idNumber, 80)
     )
       return fail("Complete all bidder registration details.");
-    if (!isAdult(clean(b.dateOfBirth, 20)))
-      return fail("Bidders must be 18 or older.");
+    if (!b.confirmAdult) return fail("You must confirm that you are 18 or older.");
     if (!b.acceptTerms || !b.acceptPrivacy)
       return fail("You must accept the Terms and Privacy Notice.");
     const exists = await db.sql`SELECT 1 FROM users WHERE email=${email}`;
@@ -311,7 +308,7 @@ async function handle(req: Request) {
     const uid = id();
     const now = new Date().toISOString();
     await db.sql`INSERT INTO users(id,email,password_hash,password_salt,first_name,last_name,mobile,id_number,date_of_birth,physical_address,marketing_opt_in,accepted_terms_at,accepted_privacy_at)
-                 VALUES(${uid},${email},${hp.hash},${hp.salt},${clean(b.firstName, 80)},${clean(b.lastName, 80)},${clean(b.mobile, 40)},${clean(b.idNumber, 80)},${clean(b.dateOfBirth, 20)},${clean(b.physicalAddress, 500)},${!!b.marketingOptIn},${now},${now})`;
+                 VALUES(${uid},${email},${hp.hash},${hp.salt},${clean(b.firstName, 80)},${clean(b.lastName, 80)},${clean(b.mobile, 40)},${clean(b.idNumber, 80)},NULL,NULL,${!!b.marketingOptIn},${now},${now})`;
     await audit(uid, "register", "user", uid, { email }, req);
     const cookie = await createSession(uid);
     const u = (await db.sql`SELECT * FROM users WHERE id=${uid}`)[0];
@@ -927,7 +924,7 @@ async function handle(req: Request) {
     }
     if (method === "GET" && parts[1] === "users") {
       const rows =
-        await db.sql`SELECT id,email,first_name,last_name,mobile,id_number,date_of_birth,physical_address,role,verified,suspended,created_at,last_login_at FROM users ORDER BY created_at DESC`;
+        await db.sql`SELECT id,email,first_name,last_name,mobile,id_number,role,verified,suspended,created_at,last_login_at FROM users ORDER BY created_at DESC`;
       return ok({ users: rows });
     }
     if (
@@ -1303,10 +1300,10 @@ async function handle(req: Request) {
       parts[2] === "bidders.csv"
     ) {
       const rows =
-        await db.sql`SELECT id,first_name,last_name,email,mobile,id_number,date_of_birth,physical_address,verified,suspended,created_at FROM users WHERE role='bidder' ORDER BY created_at`;
+        await db.sql`SELECT id,first_name,last_name,email,mobile,id_number,verified,suspended,created_at FROM users WHERE role='bidder' ORDER BY created_at`;
       const esc = (x: any) => `"${String(x ?? "").replaceAll('"', '""')}"`;
       const lines = [
-        "Bidder ID,First name,Last name,Email,Mobile,ID/Passport,Date of birth,Physical address,Verified,Suspended,Created at",
+        "Bidder ID,Name,Surname,Email,Contact number,ID number,Verified,Suspended,Created at",
         ...rows.map((r: any) =>
           [
             r.id,
@@ -1315,8 +1312,6 @@ async function handle(req: Request) {
             r.email,
             r.mobile,
             r.id_number,
-            r.date_of_birth,
-            r.physical_address,
             r.verified,
             r.suspended,
             r.created_at,

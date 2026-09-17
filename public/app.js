@@ -158,6 +158,11 @@ function applySeo(r) {
       description: "Join the Whacky Auctions early-access list for first looks, launch alerts and upcoming online auctions in South Africa.",
       path: "/join",
     },
+    register: {
+      title: "Create a Bidder Account | Whacky Auctions",
+      description: "Create your Whacky Auctions bidder account using only the essential identity and contact details needed for verification.",
+      path: "/register",
+    },
     legal: {
       title: "How Whacky Auctions Works | Rules & Buyer Information",
       description: "Learn how Whacky Auctions works, including honest condition disclosures, bidding, soft-close rules, payments and collection in South Africa.",
@@ -251,11 +256,11 @@ function card(a) {
 }
 function header() {
   return `<header class="topbar"><div class="container nav"><a class="brand" href="/" data-link><span class="brandmark">W</span><span>Whacky Auctions</span></a>
-<nav class="navlinks"><a href="/" data-link>Auctions</a>${state.me ? `<a href="/my-bids" data-link>My bids</a><a href="/watchlist" data-link>Watchlist</a><a href="/wins" data-link>Wins</a>` : ""}<a href="/legal" data-link>How it works</a>${state.me?.role === "admin" ? '<a href="/admin" data-link>Admin</a>' : ""}${state.me ? `<button id="accountBtn">${esc(state.me.firstName)}</button>` : '<a class="nav-join" href="/join" data-link>Join early access</a><button id="loginBtn">Sign in</button>'}</nav>
+<nav class="navlinks"><a href="/" data-link>Auctions</a>${state.me ? `<a href="/my-bids" data-link>My bids</a><a href="/watchlist" data-link>Watchlist</a><a href="/wins" data-link>Wins</a>` : ""}<a href="/legal" data-link>How it works</a>${state.me?.role === "admin" ? '<a href="/admin" data-link>Admin</a>' : ""}${state.me ? `<button id="accountBtn">${esc(state.me.firstName)}</button>` : '<a href="/join" data-link>Early access</a><a class="nav-join" href="/register" data-link>Become a bidder</a><button id="loginBtn">Sign in</button>'}</nav>
 <button class="btn btn-secondary mobile-menu" id="mobileBtn">Menu</button></div></header>`;
 }
 function footer() {
-  return `<footer class="footer"><div class="container footer-grid"><div><div class="brand"><span class="brandmark">W</span><span>Whacky Auctions</span></div><p class="muted small">A proudly South African auction room. Lekker goods, honest notes and no funny business.</p><p class="small">Whacky Auctions PTY LTD · South Africa</p></div><div><b>Come have a look</b><a href="/" data-link>All auctions</a><a href="/join" data-link>Join early access</a><a href="/install" data-link>Install the app</a></div><div><b>Trust & legal</b><a href="/legal" data-link>Legal centre</a><a href="/legal/privacy-policy.pdf" target="_blank">Privacy Policy</a><a href="/legal/terms-auction-rules.pdf" target="_blank">Terms & Auction Rules</a><a href="https://pay.yoco.com/whacky-auctions" target="_blank" rel="noopener">Secure payments by Yoco ↗</a></div></div></footer>`;
+  return `<footer class="footer"><div class="container footer-grid"><div><div class="brand"><span class="brandmark">W</span><span>Whacky Auctions</span></div><p class="muted small">A proudly South African auction room. Lekker goods, honest notes and no funny business.</p><p class="small">Whacky Auctions PTY LTD · South Africa</p></div><div><b>Come have a look</b><a href="/" data-link>All auctions</a><a href="/register" data-link>Become a verified bidder</a><a href="/join" data-link>Join early access</a><a href="/install" data-link>Install the app</a></div><div><b>Trust & legal</b><a href="/legal" data-link>Legal centre</a><a href="/legal/privacy-policy.pdf" target="_blank">Privacy Policy</a><a href="/legal/terms-auction-rules.pdf" target="_blank">Terms & Auction Rules</a><a href="https://pay.yoco.com/whacky-auctions" target="_blank" rel="noopener">Secure payments by Yoco ↗</a></div></div></footer>`;
 }
 async function loadAuctions() {
   const d = await api("auctions");
@@ -275,7 +280,7 @@ async function home() {
     up = auctions.filter((a) => a.status === "scheduled"),
     ended = auctions.filter((a) => ["closed", "unsold"].includes(a.status));
   return `${header()}<main>
-<section class="hero"><div class="container hero-grid"><div><span class="eyebrow">🇿🇦 The online auction room made for Mzansi</span><h1>Come in.<br><span class="grad">You might score lekker.</span></h1><p>Useful things, unusual things and the occasional “where on earth did that come from?” — all with real photos, straight-up condition notes and fair bidding.</p><div class="hero-actions"><a class="btn btn-primary" href="/join" data-link>Join the Whacky family</a><a class="btn btn-secondary" href="#previews">Kom kyk — see the goods</a></div><div class="hero-proof"><span>✓ Free to join</span><span>✓ Honest condition notes</span><span>✓ Secure Yoco payments</span></div></div><aside class="launch-card"><div class="fair-icon">⏱</div><div><div class="label">Fair is fair, mos</div><h3>No last-second nonsense</h3><div class="mini">A valid bid in the final two minutes restores the full window. Everyone gets time to answer before the hammer drops.</div></div><div class="softclose"><b>No sneaky sniping, china.</b><div class="mini">A proper chance for every bidder.</div></div></aside></div></section>
+<section class="hero"><div class="container hero-grid"><div><span class="eyebrow">🇿🇦 The online auction room made for Mzansi</span><h1>Come in.<br><span class="grad">You might score lekker.</span></h1><p>Useful things, unusual things and the occasional “where on earth did that come from?” — all with real photos, straight-up condition notes and fair bidding.</p><div class="hero-actions"><a class="btn btn-primary" href="/register" data-link>Become a verified bidder</a><a class="btn btn-secondary" href="#previews">Kom kyk — see the goods</a></div><div class="hero-proof"><span>✓ Free to join</span><span>✓ Honest condition notes</span><span>✓ Secure Yoco payments</span></div></div><aside class="launch-card"><div class="fair-icon">⏱</div><div><div class="label">Fair is fair, mos</div><h3>No last-second nonsense</h3><div class="mini">A valid bid in the final two minutes restores the full window. Everyone gets time to answer before the hammer drops.</div></div><div class="softclose"><b>No sneaky sniping, china.</b><div class="mini">A proper chance for every bidder.</div></div></aside></div></section>
 <section class="how-strip" aria-label="How Whacky Auctions works"><div class="container steps"><div><span>1</span><b>Have a squiz</b><small>Real photos and honest notes.</small></div><div><span>2</span><b>Bid without panic</b><small>Fair two-minute soft close.</small></div><div><span>3</span><b>Win it, collect it</b><small>Clear payment and collection details.</small></div></div></section>
 <section class="how-strip"><div class="container steps"><div><span>1</span><b>Join early</b><small>Get launch alerts first</small></div><div><span>2</span><b>Browse honestly</b><small>Photos and condition notes</small></div><div><span>3</span><b>Bid fairly</b><small>Soft close protects your chance</small></div></div></section>
 <section id="previews" class="section preview-section"><div class="container"><div class="section-head"><div><div class="label">What’s on the stoep</div><h2>Have a look around.</h2></div><div class="muted">5 preview items</div></div><p class="preview-intro">Real Whacky stock, photographed as it stands. These are previews only; the full description, condition notes and auction terms will be waiting when each lot goes live.</p><div class="grid preview-grid">${PREVIEW_ITEMS.map(previewCard).join("")}</div></div></section>
@@ -288,6 +293,11 @@ async function joinPage() {
     count = (await api("early-access/count")).count || 0;
   } catch {}
   return `${header()}<main class="join-page"><section class="container join-grid"><div class="join-copy"><span class="eyebrow">Founding bidder early access</span><h1>Get in before the hammer drops.</h1><p>Join the Whacky Auctions launch list and be among the first to hear when bidding opens. It costs nothing and takes less than a minute.</p><div class="join-benefits"><div><span>01</span><b>First look at upcoming lots</b><small>See what is coming before launch day.</small></div><div><span>02</span><b>Launch alerts</b><small>Know when bidder verification and bidding open.</small></div><div><span>03</span><b>No spammy nonsense</b><small>Useful Whacky updates, with an easy opt-out.</small></div></div>${count ? `<div class="signup-count"><b>${count}</b> early bidder${count === 1 ? "" : "s"} already in the room.</div>` : ""}</div><div class="panel join-panel"><div class="label">Reserve your spot</div><h2>Join early access</h2><p class="muted">This is a pre-launch list—not a bid, purchase or paid registration.</p><form id="earlyAccessForm" class="admin-form"><div class="form-grid"><div class="field"><label>First name</label><input class="input" name="firstName" autocomplete="given-name" required></div><div class="field"><label>Last name</label><input class="input" name="lastName" autocomplete="family-name" required></div></div><div class="field"><label>Email address</label><input class="input" type="email" name="email" autocomplete="email" inputmode="email" required></div><div class="field"><label>Mobile number</label><input class="input" name="mobile" autocomplete="tel" inputmode="tel" placeholder="e.g. 082 123 4567" required></div><label class="switch consent"><input type="checkbox" name="acceptPrivacy" required><span>I have read the <a href="/legal/privacy-policy.pdf" target="_blank">POPIA Privacy Notice</a> and agree to my details being used for this signup.</span></label><label class="switch consent"><input type="checkbox" name="marketingOptIn"><span>Send me launch news, auction alerts and special offers by email or mobile (optional).</span></label><button class="btn btn-primary join-submit">Save my early-access spot</button><p class="muted small">We only collect what is needed for early access. Formal bidder verification happens separately before bidding.</p></form></div></section></main>${footer()}`;
+}
+function bidderSignupPage() {
+  if (state.me)
+    return `${header()}<main class="section"><div class="container"><div class="panel"><h2>Your bidder account already exists</h2><p>You are signed in as <b>${esc(state.me.firstName)} ${esc(state.me.lastName)}</b>.</p><a class="btn btn-primary" href="/profile" data-link>View bidder status</a></div></div></main>${footer()}`;
+  return `${header()}<main class="join-page"><section class="container join-grid"><div class="join-copy"><span class="eyebrow">Bidder registration</span><h1>Ready to bid?<br>Start here.</h1><p>Create your bidder account now. We only ask for the identity and contact details needed to review your bidder verification.</p><div class="join-benefits"><div><span>01</span><b>Simple details</b><small>Name, surname, contact number and ID number.</small></div><div><span>02</span><b>Secure account</b><small>Your email and password let you sign in safely.</small></div><div><span>03</span><b>Verification status</b><small>You can see when your account is pending or verified.</small></div></div></div><div class="panel join-panel"><div class="label">Create your account</div><h2>Become a bidder</h2><p class="muted">There is no address field. Bidding remains locked until Whacky Auctions is legally ready to launch.</p>${registerForm()}</div></section></main>${footer()}`;
 }
 async function auctionPage(id) {
   let d;
@@ -702,11 +712,11 @@ async function duplicateAuction(aid) {
 }
 async function adminUsers() {
   const d = await api("admin/users");
-  return `<div class="panel"><h3>Bidder verification</h3><p class="muted small">Review the bidder's identity/contact information before activating bidding privileges.</p><div class="table-wrap"><table><thead><tr><th>Name</th><th>Contact</th><th>ID / DOB</th><th>Address</th><th>Status</th><th>Action</th></tr></thead><tbody>${d.users
+  return `<div class="panel"><h3>Bidder verification</h3><p class="muted small"><b>Verification status</b> shows whether a bidder is Pending, Verified or Suspended. <b>Admin controls</b> are the buttons you use to verify, unverify, suspend or restore that bidder.</p><div class="table-wrap"><table><thead><tr><th>Name & surname</th><th>Contact number</th><th>Email</th><th>ID number</th><th>Verification status</th><th>Admin controls</th></tr></thead><tbody>${d.users
     .filter((u) => u.role === "bidder")
     .map(
       (u) =>
-        `<tr><td><b>${esc(u.first_name)} ${esc(u.last_name)}</b></td><td>${esc(u.email)}<br>${esc(u.mobile)}</td><td>${esc(u.id_number)}<br>${esc(String(u.date_of_birth).slice(0, 10))}</td><td>${esc(u.physical_address)}</td><td>${u.suspended ? "Suspended" : u.verified ? "Verified" : "Pending"}</td><td><div class="toolbar"><button class="btn btn-secondary small" data-verify-user="${u.id}" data-value="${u.verified ? "0" : "1"}">${u.verified ? "Unverify" : "Verify"}</button><button class="btn btn-danger small" data-suspend-user="${u.id}" data-value="${u.suspended ? "0" : "1"}">${u.suspended ? "Unsuspend" : "Suspend"}</button></div></td></tr>`,
+        `<tr><td><b>${esc(u.first_name)} ${esc(u.last_name)}</b></td><td>${esc(u.mobile)}</td><td>${esc(u.email)}</td><td>${esc(u.id_number)}</td><td>${u.suspended ? "Suspended" : u.verified ? "Verified" : "Pending review"}</td><td><div class="toolbar"><button class="btn btn-secondary small" data-verify-user="${u.id}" data-value="${u.verified ? "0" : "1"}">${u.verified ? "Mark pending" : "Mark verified"}</button><button class="btn btn-danger small" data-suspend-user="${u.id}" data-value="${u.suspended ? "0" : "1"}">${u.suspended ? "Restore" : "Suspend"}</button></div></td></tr>`,
     )
     .join("")}</tbody></table></div></div>`;
 }
@@ -733,7 +743,7 @@ function showMobileMenu() {
   closeMobileMenu();
   document.body.insertAdjacentHTML(
     "beforeend",
-    `<div class="mobile-nav-backdrop" id="mobileNav"><nav class="mobile-nav-panel" aria-label="Mobile navigation"><div class="mobile-nav-head"><b>Menu</b><button class="x" id="mobileNavX" aria-label="Close menu">×</button></div><a data-link href="/">Auctions</a>${state.me ? '<a data-link href="/my-bids">My bids</a><a data-link href="/watchlist">Watchlist</a><a data-link href="/wins">Wins</a><a data-link href="/profile">Account</a>' : '<a data-link href="/join">Join early access</a><button id="mobileLogin">Sign in</button>'}${state.me?.role === "admin" ? '<a data-link href="/admin">Admin</a>' : ""}<a data-link href="/legal">How it works</a><a data-link href="/install">Install the app</a></nav></div>`,
+    `<div class="mobile-nav-backdrop" id="mobileNav"><nav class="mobile-nav-panel" aria-label="Mobile navigation"><div class="mobile-nav-head"><b>Menu</b><button class="x" id="mobileNavX" aria-label="Close menu">×</button></div><a data-link href="/">Auctions</a>${state.me ? '<a data-link href="/my-bids">My bids</a><a data-link href="/watchlist">Watchlist</a><a data-link href="/wins">Wins</a><a data-link href="/profile">Account</a>' : '<a data-link href="/register">Become a verified bidder</a><a data-link href="/join">Join early access</a><button id="mobileLogin">Sign in</button>'}${state.me?.role === "admin" ? '<a data-link href="/admin">Admin</a>' : ""}<a data-link href="/legal">How it works</a><a data-link href="/install">Install the app</a></nav></div>`,
   );
   $("#mobileNavX").onclick = closeMobileMenu;
   $("#mobileNav").onclick = (e) => {
@@ -764,7 +774,7 @@ function loginForm() {
   return `<form id="loginForm" class="admin-form"><div class="field"><label>Email</label><input class="input" name="email" type="email" required></div><div class="field"><label>Password</label><input class="input" name="password" type="password" required></div><button class="btn btn-primary">Sign in</button></form>`;
 }
 function registerForm() {
-  return `<form id="registerForm" class="admin-form"><div class="form-grid"><div class="field"><label>First name</label><input class="input" name="firstName" required></div><div class="field"><label>Last name</label><input class="input" name="lastName" required></div></div><div class="form-grid"><div class="field"><label>Email</label><input class="input" type="email" name="email" required></div><div class="field"><label>Mobile</label><input class="input" name="mobile" required></div></div><div class="form-grid"><div class="field"><label>ID / passport number</label><input class="input" name="idNumber" required></div><div class="field"><label>Date of birth</label><input class="input" type="date" name="dateOfBirth" required></div></div><div class="field"><label>Physical address</label><textarea class="textarea" name="physicalAddress" required></textarea></div><div class="field"><label>Password</label><input class="input" type="password" minlength="10" name="password" required></div><label class="switch"><input type="checkbox" name="acceptTerms" required> I accept the <a href="/legal/terms-auction-rules.pdf" target="_blank">Terms & Auction Rules</a>.</label><label class="switch"><input type="checkbox" name="acceptPrivacy" required> I have read the <a href="/legal/privacy-policy.pdf" target="_blank">POPIA Privacy Notice</a>.</label><label class="switch"><input type="checkbox" name="marketingOptIn"> I want to receive Whacky Auctions marketing (optional).</label><button class="btn btn-primary">Create account</button><p class="muted small">Bidder registration details are retained for auction compliance and verification.</p></form>`;
+  return `<form id="registerForm" class="admin-form"><div class="form-grid"><div class="field"><label>Name</label><input class="input" name="firstName" autocomplete="given-name" required></div><div class="field"><label>Surname</label><input class="input" name="lastName" autocomplete="family-name" required></div></div><div class="form-grid"><div class="field"><label>Contact number</label><input class="input" name="mobile" autocomplete="tel" inputmode="tel" required></div><div class="field"><label>ID number</label><input class="input" name="idNumber" autocomplete="off" required></div></div><div class="field"><label>Email <span class="muted">(used to sign in)</span></label><input class="input" type="email" name="email" autocomplete="email" required></div><div class="field"><label>Password</label><input class="input" type="password" minlength="10" name="password" autocomplete="new-password" required></div><label class="switch"><input type="checkbox" name="confirmAdult" required> I confirm that I am 18 years or older.</label><label class="switch"><input type="checkbox" name="acceptTerms" required> I accept the <a href="/legal/terms-auction-rules.pdf" target="_blank">Terms & Auction Rules</a>.</label><label class="switch"><input type="checkbox" name="acceptPrivacy" required> I have read the <a href="/legal/privacy-policy.pdf" target="_blank">POPIA Privacy Notice</a>.</label><label class="switch"><input type="checkbox" name="marketingOptIn"> I want to receive Whacky Auctions marketing (optional).</label><button class="btn btn-primary">Create bidder account</button><p class="muted small">Verification details collected: name, surname, contact number and ID number. Email and password are only used for account access.</p></form>`;
 }
 function bindAuth() {
   const lf = $("#loginForm");
@@ -799,9 +809,8 @@ function bindAuth() {
             email: f.get("email"),
             mobile: f.get("mobile"),
             idNumber: f.get("idNumber"),
-            dateOfBirth: f.get("dateOfBirth"),
-            physicalAddress: f.get("physicalAddress"),
             password: f.get("password"),
+            confirmAdult: f.get("confirmAdult") === "on",
             acceptTerms: f.get("acceptTerms") === "on",
             acceptPrivacy: f.get("acceptPrivacy") === "on",
             marketingOptIn: f.get("marketingOptIn") === "on",
@@ -810,7 +819,8 @@ function bindAuth() {
         state.me = d.me;
         closeModal();
         toast(d.message);
-        render();
+        if (location.pathname.replace(/\/$/, "") === "/register") go("/profile");
+        else render();
       } catch (x) {
         toast(x.message, true);
       }
@@ -1344,6 +1354,7 @@ async function render() {
     else if (r === "watchlist") html = await accountList("watchlist");
     else if (r === "wins") html = await accountList("wins");
     else if (r === "profile") html = await profile();
+    else if (r === "register") html = bidderSignupPage();
     else if (r === "legal") html = legal();
     else if (r === "install") html = installPage();
     else if (r.startsWith("rules/")) html = await rulesPage(r.split("/")[1]);
