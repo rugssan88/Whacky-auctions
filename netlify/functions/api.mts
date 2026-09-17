@@ -204,6 +204,17 @@ async function handle(req: Request) {
 
   if (method === "GET" && parts[0] === "health")
     return ok({ service: "Whacky Auctions", time: new Date().toISOString() });
+  if (method === "POST" && parts[0] === "page-view") {
+    const body = await req.json().catch(() => ({}));
+    const rawPath = clean(body.path, 300).split(/[?#]/)[0] || "/";
+    const viewPath = rawPath.startsWith("/") ? rawPath : `/${rawPath}`;
+    if (viewPath.startsWith("/admin") || viewPath.startsWith("/api/"))
+      return ok({ recorded: false });
+    await db.sql`INSERT INTO page_views(view_date,path,view_count)
+                 VALUES((NOW() AT TIME ZONE 'Africa/Johannesburg')::date,${viewPath},1)
+                 ON CONFLICT(view_date,path) DO UPDATE SET view_count=page_views.view_count+1`;
+    return ok({ recorded: true }, 201);
+  }
   if (method === "POST" && parts[0] === "admin" && parts[1] === "setup") {
     const existing =
       await db.sql`SELECT 1 FROM users WHERE role='admin' LIMIT 1`;
@@ -885,6 +896,8 @@ async function handle(req: Request) {
         bids,
         pending,
         earlyAccess,
+        viewsToday,
+        viewsThirtyDays,
       ] = await Promise.all([
         db.sql`SELECT COUNT(*)::int c FROM users`,
         db.sql`SELECT COUNT(*)::int c FROM users WHERE role='bidder'`,
@@ -894,6 +907,8 @@ async function handle(req: Request) {
         db.sql`SELECT COUNT(*)::int c FROM bids WHERE retracted_at IS NULL`,
         db.sql`SELECT COUNT(*)::int c FROM users WHERE role='bidder' AND verified=FALSE AND suspended=FALSE`,
         db.sql`SELECT COUNT(*)::int c FROM early_access_signups`,
+        db.sql`SELECT COALESCE(SUM(view_count),0)::int c FROM page_views WHERE view_date=(NOW() AT TIME ZONE 'Africa/Johannesburg')::date`,
+        db.sql`SELECT COALESCE(SUM(view_count),0)::int c FROM page_views WHERE view_date >= ((NOW() AT TIME ZONE 'Africa/Johannesburg')::date - 29)`,
       ]);
       return ok({
         stats: {
@@ -905,6 +920,8 @@ async function handle(req: Request) {
           bids: bids[0].c,
           pendingVerification: pending[0].c,
           earlyAccess: earlyAccess[0].c,
+          viewsToday: viewsToday[0].c,
+          viewsThirtyDays: viewsThirtyDays[0].c,
         },
         settings: await getSettings(),
       });

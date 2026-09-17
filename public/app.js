@@ -10,6 +10,7 @@ const state = {
   quickPhotoKey: null,
   quickOriginalImageIds: [],
   quickSavedAuction: null,
+  lastTrackedPath: null,
 };
 const $ = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
@@ -31,6 +32,12 @@ const fmtDate = (d) =>
     timeStyle: "short",
   }).format(new Date(d));
 const now = () => Date.now() + state.serverOffset;
+const optimisedImage = (url, width, height = 0, fit = "cover") => {
+  if (!url || String(url).startsWith("blob:")) return url;
+  const p = new URLSearchParams({ url: String(url), w: String(width), fit, q: "82" });
+  if (height) p.set("h", String(height));
+  return `/.netlify/images?${p}`;
+};
 const PREVIEW_ITEMS = [
   {
     title: "Printer & craft-printing bundle",
@@ -70,7 +77,7 @@ const PREVIEW_ITEMS = [
 ];
 function previewCard(item) {
   return `<article class="card preview-card">
-    <div class="preview-images">${item.images.map((src, i) => `<img loading="lazy" src="${esc(src)}" alt="${esc(item.title)} — view ${i + 1}">`).join("")}<span class="chip preview-chip">Sneak peek</span></div>
+    <div class="preview-images">${item.images.map((src, i) => `<img loading="lazy" src="${esc(optimisedImage(src, 520, 390))}" alt="${esc(item.title)} — view ${i + 1}">`).join("")}<span class="chip preview-chip">Sneak peek</span></div>
     <div class="card-body"><div class="label">${esc(item.category)}</div><h3 class="card-title">${esc(item.title)}</h3><p class="preview-condition">${esc(item.condition)}</p><div class="preview-bid"><span>Bidding set to start at</span><strong>${randMoney(item.openingBidCents)}</strong></div><div class="preview-status">Coming to Whacky · Not open for bidding</div></div>
   </article>`;
 }
@@ -96,6 +103,14 @@ async function api(path, opt = {}) {
       { status: r.status, data },
     );
   return data;
+}
+function recordPageView() {
+  const path = location.pathname || "/";
+  if (path.startsWith("/admin") || state.lastTrackedPath === path) return;
+  state.lastTrackedPath = path;
+  const body = JSON.stringify({ path });
+  if (navigator.sendBeacon) navigator.sendBeacon("/api/page-view", new Blob([body], { type: "application/json" }));
+  else fetch("/api/page-view", { method: "POST", headers: { "content-type": "application/json" }, body, keepalive: true }).catch(() => {});
 }
 function setServerTime(s) {
   if (s) state.serverOffset = new Date(s).getTime() - Date.now();
@@ -174,6 +189,12 @@ function applySeo(r) {
   seoMeta('meta[property="og:type"]', { property: "og:type", content: r.startsWith("auction/") ? "product" : "website" });
   seoMeta('meta[name="twitter:title"]', { name: "twitter:title", content: page.title });
   seoMeta('meta[name="twitter:description"]', { name: "twitter:description", content: page.description });
+  if (r.startsWith("auction/") && state.seoAuction?.image) {
+    const socialImage = SEO_BASE + optimisedImage(state.seoAuction.image, 1200, 630);
+    seoMeta('meta[property="og:image"]', { property: "og:image", content: socialImage });
+    seoMeta('meta[property="og:image:alt"]', { property: "og:image:alt", content: state.seoAuction.title.replace(" | Whacky Auctions", "") });
+    seoMeta('meta[name="twitter:image"]', { name: "twitter:image", content: socialImage });
+  }
 }
 window.addEventListener("popstate", () => {
   closeModal();
@@ -222,8 +243,8 @@ function card(a) {
   const img = a.images?.[0]?.url;
   const bid = a.currentBidCents == null ? a.openingBidCents : a.currentBidCents;
   const label = a.currentBidCents == null ? "Opening bid" : "Current bid";
-  return `<article class="card auction-card" data-link="/auction/${esc(a.id)}">
-  <div class="card-img">${img ? `<img loading="lazy" src="${esc(img)}" alt="${esc(a.images[0].alt || a.title)}">` : ""}${statusChip(a)}</div>
+  return `<article class="card auction-card" data-link="/auction/${esc(a.slug || a.id)}">
+  <div class="card-img">${img ? `<img loading="lazy" src="${esc(optimisedImage(img, 720, 520))}" alt="${esc(a.images[0].alt || a.title)}">` : ""}${statusChip(a)}</div>
   <div class="card-body"><div class="label">${esc(a.category)}</div><h3 class="card-title">${esc(a.title)}</h3>
     <div class="card-meta"><div><div class="label">${label}</div><div class="price">${randMoney(bid)}</div></div><div class="right"><div class="label">${a.status === "scheduled" ? "Starts" : "Time left"}</div><div class="countdown" data-countdown="${esc(a.currentEndAt)}" data-status="${esc(a.status)}">${a.status === "scheduled" ? fmtDate(a.startAt) : countdown(a.currentEndAt, a.status)}</div></div></div>
   </div></article>`;
@@ -280,7 +301,8 @@ async function auctionPage(id) {
   state.seoAuction = {
     title: `${a.title} | Whacky Auctions`,
     description: `${a.condition}. ${a.description || "View this South African online auction, photographs and bidding details."}`.replace(/\s+/g, " ").slice(0, 158),
-    path: `/auction/${a.id}`,
+    path: `/auction/${a.slug || a.id}`,
+    image: a.images?.[0]?.url || "",
   };
   const imgs = a.images || [];
   const main = imgs[0]?.url;
@@ -298,7 +320,7 @@ async function auctionPage(id) {
     now() >= new Date(a.startAt).getTime() &&
     now() < new Date(a.currentEndAt).getTime();
   const myHigh = state.me && a.highBidderId === state.me.id;
-  return `${header()}<main class="detail"><div class="container detail-grid"><section class="gallery"><div class="main-photo">${main ? `<img id="mainPhoto" src="${esc(main)}" alt="${esc(a.title)}">` : `<div class="empty">No image yet</div>`}</div>${imgs.length > 1 ? `<div class="thumbs">${imgs.map((im, i) => `<button class="thumb ${i === 0 ? "active" : ""}" data-photo="${esc(im.url)}"><img src="${esc(im.url)}" alt="${esc(im.alt || a.title)}"></button>`).join("")}</div>` : ""}</section><section><div class="label">${esc(a.category)}</div><h1>${esc(a.title)}</h1><div class="toolbar">${statusChip(a)}<button class="btn btn-secondary" id="watchBtn">${a.watched ? "★ Watching" : "☆ Watch"}</button></div>
+  return `${header()}<main class="detail"><div class="container detail-grid"><section class="gallery"><div class="main-photo">${main ? `<img id="mainPhoto" src="${esc(optimisedImage(main, 1200, 900, "contain"))}" alt="${esc(a.title)}">` : `<div class="empty">No image yet</div>`}</div>${imgs.length > 1 ? `<div class="thumbs">${imgs.map((im, i) => `<button class="thumb ${i === 0 ? "active" : ""}" data-photo="${esc(optimisedImage(im.url, 1200, 900, "contain"))}"><img src="${esc(optimisedImage(im.url, 180, 135))}" alt="${esc(im.alt || a.title)}"></button>`).join("")}</div>` : ""}</section><section><div class="label">${esc(a.category)}</div><h1>${esc(a.title)}</h1><div class="toolbar">${statusChip(a)}<button class="btn btn-secondary" id="watchBtn">${a.watched ? "★ Watching" : "☆ Watch"}</button><button class="btn btn-secondary" id="shareAuction">Share item</button></div>
 <div class="bidbox"><div class="label">${a.currentBidCents == null ? "Opening bid" : "Current bid"}</div><div class="price" style="font-size:42px">${randMoney(high)}</div><div class="muted small">${a.bidCount} bid${a.bidCount === 1 ? "" : "s"} · increment ${randMoney(a.bidIncrementCents)}</div><div class="kv"><div><div class="label">${a.status === "scheduled" ? "Starts" : "Time left"}</div><b class="countdown" data-countdown="${esc(a.currentEndAt)}" data-status="${esc(a.status)}">${a.status === "scheduled" ? fmtDate(a.startAt) : countdown(a.currentEndAt, a.status)}</b></div><div><div class="label">Reserve</div><b>${a.reserveDisclosed ? (a.reserveMet ? "Met / not required" : "Not yet met") : "Not disclosed"}</b></div></div>
 <div class="soft-badge"><span>⏱️</span><div><b>Soft close active</b><div class="muted small">Any valid bid in the final ${Math.round(a.softCloseSeconds / 60)} minute${a.softCloseSeconds === 60 ? "" : "s"} restores a full ${Math.round(a.softCloseSeconds / 60)}-minute window. Extensions can repeat.</div></div></div>
 ${myHigh ? '<div class="notice good" style="margin-top:12px">You currently hold the highest bid.</div>' : ""}
@@ -380,7 +402,7 @@ async function admin() {
   } catch (e) {
     return errorPage(e.message);
   }
-  const side = `<aside class="side"><button data-admin-tab="overview" class="${state.adminTab === "overview" ? "active" : ""}">Overview</button><button data-admin-tab="auctions" class="${state.adminTab === "auctions" ? "active" : ""}">Quick List</button><button data-admin-tab="users" class="${state.adminTab === "users" ? "active" : ""}">Bidders</button><button data-admin-tab="records" class="${state.adminTab === "records" ? "active" : ""}">Records</button></aside>`;
+  const side = `<aside class="side"><button data-admin-tab="overview" class="${state.adminTab === "overview" ? "active" : ""}">Overview</button><button data-admin-tab="auctions" class="${state.adminTab === "auctions" ? "active" : ""}">Quick List</button><button data-admin-tab="users" class="${state.adminTab === "users" ? "active" : ""}">Bidders</button><button data-admin-tab="records" class="${state.adminTab === "records" ? "active" : ""}">Records</button>${state.adminTab === "overview" ? `<div class="stat"><span class="label">Views today</span><b>${dash.stats.viewsToday}</b></div><div class="stat"><span class="label">Views · 30 days</span><b>${dash.stats.viewsThirtyDays}</b></div>` : ""}</aside>`;
   let body = "";
   if (state.adminTab === "overview") body = adminOverview(dash);
   if (state.adminTab === "auctions") body = await adminAuctions();
@@ -871,6 +893,20 @@ async function bind() {
         toast(e.message, true);
       }
     };
+  const shareAuction = $("#shareAuction");
+  if (shareAuction)
+    shareAuction.onclick = async () => {
+      const share = { title: document.title, text: state.seoAuction?.description || "See this item on Whacky Auctions", url: location.href };
+      try {
+        if (navigator.share) await navigator.share(share);
+        else {
+          await navigator.clipboard.writeText(location.href);
+          toast("Auction link copied. Share it on WhatsApp or Facebook.");
+        }
+      } catch (e) {
+        if (e?.name !== "AbortError") toast("Could not share this item.", true);
+      }
+    };
   $$("[data-retract-bid]").forEach(
     (b) =>
       (b.onclick = async () => {
@@ -1305,6 +1341,7 @@ async function render() {
   app.innerHTML = html;
   applySeo(r);
   await bind();
+  recordPageView();
   tick();
 }
 function tick() {
