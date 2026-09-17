@@ -34,6 +34,17 @@ const clean = (s: any, max = 5000) =>
     .trim()
     .slice(0, max);
 const money = (v: any) => Number(v ?? 0);
+let pageViewsReady: Promise<any> | null = null;
+function ensurePageViews() {
+  if (!pageViewsReady)
+    pageViewsReady = db.sql`CREATE TABLE IF NOT EXISTS page_views (
+      view_date DATE NOT NULL,
+      path TEXT NOT NULL,
+      view_count BIGINT NOT NULL DEFAULT 0,
+      PRIMARY KEY (view_date, path)
+    )`;
+  return pageViewsReady;
+}
 
 async function verifyYocoWebhook(rawBody: string, req: Request) {
   const settings = await getSettings();
@@ -205,6 +216,7 @@ async function handle(req: Request) {
   if (method === "GET" && parts[0] === "health")
     return ok({ service: "Whacky Auctions", time: new Date().toISOString() });
   if (method === "POST" && parts[0] === "page-view") {
+    await ensurePageViews();
     const body = await req.json().catch(() => ({}));
     const rawPath = clean(body.path, 300).split(/[?#]/)[0] || "/";
     const viewPath = rawPath.startsWith("/") ? rawPath : `/${rawPath}`;
@@ -887,6 +899,7 @@ async function handle(req: Request) {
     const admin = await requireAdmin(req);
     if (method === "GET" && parts[1] === "dashboard") {
       await closeExpiredAuctions();
+      await ensurePageViews();
       const [
         users,
         registeredBidders,
