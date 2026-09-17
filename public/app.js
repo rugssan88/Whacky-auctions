@@ -36,37 +36,42 @@ const PREVIEW_ITEMS = [
     title: "Printer & craft-printing bundle",
     category: "Creative equipment",
     condition: "A colourful setup for personalised gifts and crafts—printer, press, inks, blanks and designs included as pictured. Untested.",
+    openingBidCents: 260000,
     images: ["/previews/printer-bundle-1.webp", "/previews/printer-bundle-2.webp"],
   },
   {
     title: "Pair of decorative copper pots",
     category: "Home & décor",
     condition: "A striking handled copper pair with loads of old-school charm. Visible age marks and interior oxidation/patina; sold as pictured.",
+    openingBidCents: 48000,
     images: ["/previews/copper-pots-1.webp", "/previews/copper-pots-2.webp"],
   },
   {
     title: "Nesty GR55 TWS portable speaker",
     category: "Audio",
     condition: "Portable boombox with carry handle plus USB, AUX and TF inputs. Tested and working, with visible cosmetic marks.",
+    openingBidCents: 18000,
     images: ["/previews/nesty-speaker-1.webp", "/previews/nesty-speaker-2.webp"],
   },
   {
     title: "Nike Tiempo-branded football boots",
     category: "Sport",
     condition: "Bold red-and-black football boots for the next kick-about. Used with creasing and sole/stud wear; authenticity not independently verified.",
+    openingBidCents: 20000,
     images: ["/previews/nike-tiempo-1.webp", "/previews/nike-tiempo-2.webp"],
   },
   {
     title: "Kaufmann 16L backpack sprayer",
     category: "Garden & outdoor",
     condition: "Handy 16L backpack sprayer with hose, wand and straps for garden or property work. Used with surface marks; untested.",
+    openingBidCents: 12000,
     images: ["/previews/kaufmann-sprayer-1.webp", "/previews/kaufmann-sprayer-2.webp"],
   },
 ];
 function previewCard(item) {
   return `<article class="card preview-card">
     <div class="preview-images">${item.images.map((src, i) => `<img loading="lazy" src="${esc(src)}" alt="${esc(item.title)} — view ${i + 1}">`).join("")}<span class="chip preview-chip">Sneak peek</span></div>
-    <div class="card-body"><div class="label">${esc(item.category)}</div><h3 class="card-title">${esc(item.title)}</h3><p class="preview-condition">${esc(item.condition)}</p><div class="preview-status">Coming to Whacky · Not open for bidding</div></div>
+    <div class="card-body"><div class="label">${esc(item.category)}</div><h3 class="card-title">${esc(item.title)}</h3><p class="preview-condition">${esc(item.condition)}</p><div class="preview-bid"><span>Bidding set to start at</span><strong>${randMoney(item.openingBidCents)}</strong></div><div class="preview-status">Coming to Whacky · Not open for bidding</div></div>
   </article>`;
 }
 function toast(msg, error = false) {
