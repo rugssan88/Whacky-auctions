@@ -726,6 +726,26 @@ function modal(html) {
 function closeModal() {
   $("#modal")?.remove();
 }
+function closeMobileMenu() {
+  $("#mobileNav")?.remove();
+}
+function showMobileMenu() {
+  closeMobileMenu();
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    `<div class="mobile-nav-backdrop" id="mobileNav"><nav class="mobile-nav-panel" aria-label="Mobile navigation"><div class="mobile-nav-head"><b>Menu</b><button class="x" id="mobileNavX" aria-label="Close menu">×</button></div><a data-link href="/">Auctions</a>${state.me ? '<a data-link href="/my-bids">My bids</a><a data-link href="/watchlist">Watchlist</a><a data-link href="/wins">Wins</a><a data-link href="/profile">Account</a>' : '<a data-link href="/join">Join early access</a><button id="mobileLogin">Sign in</button>'}${state.me?.role === "admin" ? '<a data-link href="/admin">Admin</a>' : ""}<a data-link href="/legal">How it works</a><a data-link href="/install">Install the app</a></nav></div>`,
+  );
+  $("#mobileNavX").onclick = closeMobileMenu;
+  $("#mobileNav").onclick = (e) => {
+    if (e.target.id === "mobileNav") closeMobileMenu();
+  };
+  $$("#mobileNav [data-link]").forEach((link) => link.addEventListener("click", closeMobileMenu));
+  const mobileLogin = $("#mobileLogin");
+  if (mobileLogin) mobileLogin.onclick = () => {
+    closeMobileMenu();
+    showLogin(false);
+  };
+}
 function showLogin(register = false) {
   modal(
     `<h2>${register ? "Create bidder account" : "Sign in"}</h2><div class="tabs"><button class="tab ${!register ? "active" : ""}" id="loginTab">Sign in</button><button class="tab ${register ? "active" : ""}" id="registerTab">Register</button></div><div id="authBody">${register ? registerForm() : loginForm()}</div>`,
@@ -864,11 +884,7 @@ async function bind() {
   if (lh) lh.onclick = () => showLogin(false);
   if (ab) ab.onclick = () => go("/profile");
   const mb = $("#mobileBtn");
-  if (mb)
-    mb.onclick = () =>
-      modal(
-        `<h2>Menu</h2><div class="legal-list"><a class="legal-link" data-link href="/">Auctions</a>${state.me ? '<a class="legal-link" data-link href="/my-bids">My bids</a><a class="legal-link" data-link href="/watchlist">Watchlist</a><a class="legal-link" data-link href="/wins">Wins</a><a class="legal-link" data-link href="/profile">Account</a>' : ""}${state.me?.role === "admin" ? '<a class="legal-link" data-link href="/admin">Admin</a>' : ""}<a class="legal-link" data-link href="/legal">Legal</a></div>`,
-      );
+  if (mb) mb.onclick = showMobileMenu;
   $$("#modal [data-link]").forEach((x) =>
     x.addEventListener("click", closeModal),
   );

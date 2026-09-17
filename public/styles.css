@@ -111,6 +111,49 @@ select {
 .mobile-menu {
   display: none;
 }
+.mobile-nav-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: rgba(37, 27, 22, 0.22);
+}
+.mobile-nav-panel {
+  position: absolute;
+  top: 72px;
+  right: max(15px, calc((100vw - var(--max)) / 2));
+  width: min(330px, calc(100vw - 30px));
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fffaf2;
+  box-shadow: 0 24px 60px rgba(48, 29, 18, 0.28);
+}
+.mobile-nav-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 3px 10px 10px;
+}
+.mobile-nav-panel > a,
+.mobile-nav-panel > button {
+  display: block;
+  width: 100%;
+  padding: 13px 14px;
+  border: 0;
+  border-top: 1px solid #e4d4c2;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 800;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.mobile-nav-panel > a:hover,
+.mobile-nav-panel > button:hover {
+  background: #efe1d2;
+}
 .hero {
   padding: 64px 0 38px;
 }
@@ -896,6 +939,11 @@ tr:last-child td {
   }
   .nav {
     height: 62px;
+  }
+  .mobile-nav-panel {
+    top: 64px;
+    right: 10px;
+    width: min(320px, calc(100vw - 20px));
   }
   .brandmark {
     width: 34px;
