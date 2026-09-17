@@ -34,17 +34,6 @@ const clean = (s: any, max = 5000) =>
     .trim()
     .slice(0, max);
 const money = (v: any) => Number(v ?? 0);
-let pageViewsReady: Promise<any> | null = null;
-function ensurePageViews() {
-  if (!pageViewsReady)
-    pageViewsReady = db.sql`CREATE TABLE IF NOT EXISTS page_views (
-      view_date DATE NOT NULL,
-      path TEXT NOT NULL,
-      view_count BIGINT NOT NULL DEFAULT 0,
-      PRIMARY KEY (view_date, path)
-    )`;
-  return pageViewsReady;
-}
 
 async function verifyYocoWebhook(rawBody: string, req: Request) {
   const settings = await getSettings();
@@ -216,15 +205,13 @@ async function handle(req: Request) {
   if (method === "GET" && parts[0] === "health")
     return ok({ service: "Whacky Auctions", time: new Date().toISOString() });
   if (method === "POST" && parts[0] === "page-view") {
-    await ensurePageViews();
     const body = await req.json().catch(() => ({}));
     const rawPath = clean(body.path, 300).split(/[?#]/)[0] || "/";
     const viewPath = rawPath.startsWith("/") ? rawPath : `/${rawPath}`;
     if (viewPath.startsWith("/admin") || viewPath.startsWith("/api/"))
       return ok({ recorded: false });
-    await db.sql`INSERT INTO page_views(view_date,path,view_count)
-                 VALUES((NOW() AT TIME ZONE 'Africa/Johannesburg')::date,${viewPath},1)
-                 ON CONFLICT(view_date,path) DO UPDATE SET view_count=page_views.view_count+1`;
+    await db.sql`INSERT INTO audit_log(id,actor_user_id,action,entity_type,entity_id,detail,ip_address)
+                 VALUES(${id()},NULL,'page_view','page',${viewPath},${JSON.stringify({ path: viewPath })}::jsonb,NULL)`;
     return ok({ recorded: true }, 201);
   }
   if (method === "POST" && parts[0] === "admin" && parts[1] === "setup") {
@@ -899,7 +886,6 @@ async function handle(req: Request) {
     const admin = await requireAdmin(req);
     if (method === "GET" && parts[1] === "dashboard") {
       await closeExpiredAuctions();
-      await ensurePageViews();
       const [
         users,
         registeredBidders,
@@ -920,8 +906,8 @@ async function handle(req: Request) {
         db.sql`SELECT COUNT(*)::int c FROM bids WHERE retracted_at IS NULL`,
         db.sql`SELECT COUNT(*)::int c FROM users WHERE role='bidder' AND verified=FALSE AND suspended=FALSE`,
         db.sql`SELECT COUNT(*)::int c FROM early_access_signups`,
-        db.sql`SELECT COALESCE(SUM(view_count),0)::int c FROM page_views WHERE view_date=(NOW() AT TIME ZONE 'Africa/Johannesburg')::date`,
-        db.sql`SELECT COALESCE(SUM(view_count),0)::int c FROM page_views WHERE view_date >= ((NOW() AT TIME ZONE 'Africa/Johannesburg')::date - 29)`,
+        db.sql`SELECT COUNT(*)::int c FROM audit_log WHERE action='page_view' AND created_at >= (date_trunc('day', NOW() AT TIME ZONE 'Africa/Johannesburg') AT TIME ZONE 'Africa/Johannesburg')`,
+        db.sql`SELECT COUNT(*)::int c FROM audit_log WHERE action='page_view' AND created_at >= NOW() - INTERVAL '30 days'`,
       ]);
       return ok({
         stats: {
