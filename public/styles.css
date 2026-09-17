@@ -320,10 +320,26 @@ select {
 }
 .preview-condition {
   min-height: 44px;
-  margin: 10px 0 14px;
+  margin: 10px 0 12px;
   color: var(--muted);
   font-size: 13px;
   line-height: 1.5;
+}
+.preview-bid {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 750;
+}
+.preview-bid strong {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 18px;
+  font-weight: 950;
 }
 .preview-status {
   padding-top: 12px;
