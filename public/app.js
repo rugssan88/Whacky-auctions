@@ -169,7 +169,7 @@ function applySeo(r) {
       path: "/install",
     },
   };
-  const privateRoute = ["admin", "admin-setup", "my-bids", "watchlist", "wins", "profile"].includes(r) || r.startsWith("rules/");
+  const privateRoute = ["admin", "admin-setup", "my-bids", "watchlist", "wins", "profile", "verify-bidder"].includes(r) || r.startsWith("rules/");
   const page = pages[r] || (r.startsWith("auction/") && state.seoAuction
     ? state.seoAuction
     : {
@@ -278,7 +278,7 @@ async function home() {
 <section class="hero"><div class="container hero-grid"><div><span class="eyebrow">🇿🇦 The online auction room made for Mzansi</span><h1>Come in.<br><span class="grad">You might score lekker.</span></h1><p>Useful things, unusual things and the occasional “where on earth did that come from?” — all with real photos, straight-up condition notes and fair bidding.</p><div class="hero-actions"><a class="btn btn-primary" href="#early-access">Join early access</a><a class="btn btn-secondary" href="#previews">Kom kyk — see the goods</a></div><div class="hero-proof"><span>✓ Free early access</span><span>✓ Honest condition notes</span><span>✓ Secure Yoco payments</span></div></div><aside class="launch-card"><div class="fair-icon">⏱</div><div><div class="label">Fair is fair, mos</div><h3>No last-second nonsense</h3><div class="mini">A valid bid in the final two minutes restores the full window. Everyone gets time to answer before the hammer drops.</div></div><div class="softclose"><b>No sneaky sniping, china.</b><div class="mini">A proper chance for every bidder.</div></div></aside></div></section>
 <section class="how-strip" aria-label="How Whacky Auctions works"><div class="container steps"><div><span>1</span><b>Have a squiz</b><small>Real photos and honest notes.</small></div><div><span>2</span><b>Bid without panic</b><small>Fair two-minute soft close.</small></div><div><span>3</span><b>Win it, collect it</b><small>Clear payment and collection details.</small></div></div></section>
 <section class="how-strip"><div class="container steps"><div><span>1</span><b>Join early</b><small>Get launch alerts first</small></div><div><span>2</span><b>Browse honestly</b><small>Photos and condition notes</small></div><div><span>3</span><b>Bid fairly</b><small>Soft close protects your chance</small></div></div></section>
-<section id="early-access" class="section"><div class="container join-grid"><div class="join-copy"><span class="eyebrow">Founding bidder early access</span><h2>Get in before the hammer drops.</h2><p>Join the launch list for first looks and launch alerts. Early access is free. When you create a bidder account, the separate R10 verification activation will be available only inside your account page.</p></div><div class="panel join-panel"><div class="label">Reserve your spot</div><h2>Join early access</h2>${earlyAccessForm()}</div></section>
+<section id="early-access" class="section"><div class="container join-grid"><div class="join-copy"><span class="eyebrow">Founding bidder early access</span><h2>Get in before the hammer drops.</h2><p>Join the launch list for first looks and launch alerts. Early access is free. The separate R10 verified-bidder registration will be available only inside your Early Access account.</p></div><div class="panel join-panel"><div class="label">Reserve your spot</div><h2>Join early access</h2>${earlyAccessForm()}</div></section>
 <section id="previews" class="section preview-section"><div class="container"><div class="section-head"><div><div class="label">What’s on the stoep</div><h2>Have a look around.</h2></div><div class="muted">5 preview items</div></div><p class="preview-intro">Real Whacky stock, photographed as it stands. These are previews only; the full description, condition notes and auction terms will be waiting when each lot goes live.</p><div class="grid preview-grid">${PREVIEW_ITEMS.map(previewCard).join("")}</div></div></section>
 <section id="auctions" class="section"><div class="container"><div class="section-head"><div><div class="label">Marketplace</div><h2>${live.length ? "Live auctions" : up.length ? "Upcoming auctions" : "Auctions"}</h2></div><div class="muted">${auctions.length} lot${auctions.length === 1 ? "" : "s"}</div></div>${auctions.length ? `<div class="grid">${[...live, ...up, ...ended].map(card).join("")}</div>` : `<div class="empty"><h3>Stock is being prepared.</h3><p>Auctions created in the admin dashboard will appear here when published.</p></div>`}</div></section></main>${footer()}`;
 }
@@ -291,7 +291,7 @@ async function joinPage() {
   return `${header()}<main class="join-page"><section class="container join-grid"><div class="join-copy"><span class="eyebrow">Founding bidder early access</span><h1>Get in before the hammer drops.</h1><p>Join the Whacky Auctions launch list and be among the first to hear when bidding opens. It costs nothing and takes less than a minute.</p><div class="join-benefits"><div><span>01</span><b>First look at upcoming lots</b><small>See what is coming before launch day.</small></div><div><span>02</span><b>Launch alerts</b><small>Know when bidder verification and bidding open.</small></div><div><span>03</span><b>No spammy nonsense</b><small>Useful Whacky updates, with an easy opt-out.</small></div></div>${count ? `<div class="signup-count"><b>${count}</b> early bidder${count === 1 ? "" : "s"} already in the room.</div>` : ""}</div><div class="panel join-panel"><div class="label">Reserve your spot</div><h2>Join early access</h2>${earlyAccessForm()}</div></section></main>${footer()}`;
 }
 function earlyAccessForm() {
-  return `<p class="muted">This is a free launch-list signup—not the R10 bidder activation.</p><form id="earlyAccessForm" class="admin-form"><div class="form-grid"><div class="field"><label>First name</label><input class="input" name="firstName" autocomplete="given-name" required></div><div class="field"><label>Last name</label><input class="input" name="lastName" autocomplete="family-name" required></div></div><div class="field"><label>Email address</label><input class="input" type="email" name="email" autocomplete="email" inputmode="email" required></div><div class="field"><label>Mobile number</label><input class="input" name="mobile" autocomplete="tel" inputmode="tel" placeholder="e.g. 082 123 4567" required></div><label class="switch consent"><input type="checkbox" name="acceptPrivacy" required><span>I have read the <a href="/legal/privacy-policy.pdf" target="_blank">POPIA Privacy Notice</a> and agree to my details being used for this signup.</span></label><label class="switch consent"><input type="checkbox" name="marketingOptIn"><span>Send me launch news, auction alerts and special offers by email or mobile (optional).</span></label><button class="btn btn-primary join-submit">Save my early-access spot</button><p class="muted small">Bidder activation happens separately from your account page and costs R10 once off.</p></form>`;
+  return `<p class="muted">Create your free Early Access account. Verified-bidder registration is a separate, optional step inside your account.</p><form id="earlyAccessForm" class="admin-form"><div class="form-grid"><div class="field"><label>First name</label><input class="input" name="firstName" autocomplete="given-name" required></div><div class="field"><label>Last name</label><input class="input" name="lastName" autocomplete="family-name" required></div></div><div class="field"><label>Email address</label><input class="input" type="email" name="email" autocomplete="email" inputmode="email" required></div><div class="field"><label>Mobile number</label><input class="input" name="mobile" autocomplete="tel" inputmode="tel" placeholder="e.g. 082 123 4567" required></div><div class="field"><label>Password</label><input class="input" type="password" minlength="10" name="password" autocomplete="new-password" required></div><label class="switch consent"><input type="checkbox" name="confirmAdult" required><span>I confirm that I am 18 years or older.</span></label><label class="switch consent"><input type="checkbox" name="acceptTerms" required><span>I accept the <a href="/legal/terms-auction-rules.pdf" target="_blank">Terms & Auction Rules</a>.</span></label><label class="switch consent"><input type="checkbox" name="acceptPrivacy" required><span>I have read the <a href="/legal/privacy-policy.pdf" target="_blank">POPIA Privacy Notice</a> and agree to my details being used for this signup.</span></label><label class="switch consent"><input type="checkbox" name="marketingOptIn"><span>Send me launch news, auction alerts and special offers by email or mobile (optional).</span></label><button class="btn btn-primary join-submit">Create my Early Access account</button><p class="muted small">This signup is free. If you later choose to bid, use the private link in your account and pay the once-off R10 verification fee.</p></form>`;
 }
 async function auctionPage(id) {
   let d;
@@ -375,7 +375,13 @@ async function profile() {
   try {
     notes = (await api("me/notifications")).notifications;
   } catch {}
-  return `${header()}<main class="section"><div class="container"><div class="section-head"><div><div class="label">Account</div><h2>${esc(state.me.firstName)} ${esc(state.me.lastName)}</h2></div><button class="btn btn-secondary" id="logoutBtn">Sign out</button></div><div class="detail-grid"><div class="panel"><h3>Bidder status</h3><div class="notice ${state.me.verified ? "good" : ""}">${state.me.verified ? '<span class="badge-dot"></span>Verified to bid' : "Your bidder status is not active yet. Pay the once-off R10 verification fee to activate bidding."}</div>${state.me.verified ? '<p class="muted small">Your bidder verification is active.</p>' : '<button class="btn btn-primary" id="verifyBidder" style="margin-top:12px">Activate verified bidder status — R10</button><p class="muted small">Payment is securely processed by Yoco. Successful payment activates your verified bidder status automatically and does not save your card or authorise automatic debits.</p>'}<p><b>Email:</b> ${esc(state.me.email)}</p><p><b>Mobile:</b> ${esc(state.me.mobile || "")}</p><h3>Change password</h3><form id="passwordForm" class="admin-form"><input class="input" type="password" name="currentPassword" placeholder="Current password" required><input class="input" type="password" name="newPassword" minlength="10" placeholder="New password (10+ characters)" required><button class="btn btn-secondary">Change password</button></form></div><div class="panel"><div class="section-head"><h3>Notifications</h3><button class="btn btn-secondary" id="readNotes">Mark read</button></div>${notes.length ? notes.map((n) => `<div style="padding:12px 0;border-bottom:1px solid var(--line)"><b>${esc(n.message)}</b><div class="muted small">${fmtDate(n.created_at)}</div></div>`).join("") : '<div class="muted">No notifications.</div>'}</div></div></div></main>${footer()}`;
+  return `${header()}<main class="section"><div class="container"><div class="section-head"><div><div class="label">Early Access account</div><h2>${esc(state.me.firstName)} ${esc(state.me.lastName)}</h2></div><button class="btn btn-secondary" id="logoutBtn">Sign out</button></div><div class="detail-grid"><div class="panel"><h3>Bidder status</h3><div class="notice ${state.me.verified ? "good" : ""}">${state.me.verified ? '<span class="badge-dot"></span>Verified to bid' : "You have an Early Access account. Bidder registration is optional and completed on a separate page."}</div>${state.me.verified ? '<p class="muted small">Your bidder verification is active.</p>' : '<a class="btn btn-primary" href="/verify-bidder" data-link style="margin-top:12px">Register to become a verified bidder</a><p class="muted small">The separate registration page collects your ID number and explains the once-off R10 Yoco activation payment.</p>'}<p><b>Email:</b> ${esc(state.me.email)}</p><p><b>Mobile:</b> ${esc(state.me.mobile || "")}</p><h3>Change password</h3><form id="passwordForm" class="admin-form"><input class="input" type="password" name="currentPassword" placeholder="Current password" required><input class="input" type="password" name="newPassword" minlength="10" placeholder="New password (10+ characters)" required><button class="btn btn-secondary">Change password</button></form></div><div class="panel"><div class="section-head"><h3>Notifications</h3><button class="btn btn-secondary" id="readNotes">Mark read</button></div>${notes.length ? notes.map((n) => `<div style="padding:12px 0;border-bottom:1px solid var(--line)"><b>${esc(n.message)}</b><div class="muted small">${fmtDate(n.created_at)}</div></div>`).join("") : '<div class="muted">No notifications.</div>'}</div></div></div></main>${footer()}`;
+}
+function verifyBidderPage() {
+  if (!state.me) return needLogin();
+  if (state.me.verified)
+    return `${header()}<main class="section"><div class="container"><div class="panel"><div class="label">Verified bidder</div><h2>Your bidder status is active</h2><p>You are verified and will be able to bid when Whacky Auctions opens bidding.</p><a class="btn btn-primary" href="/profile" data-link>Back to my account</a></div></div></main>${footer()}`;
+  return `${header()}<main class="section"><div class="container"><div class="section-head"><div><div class="label">Separate bidder registration</div><h2>Become a verified bidder</h2></div><a class="btn btn-secondary" href="/profile" data-link>Back to account</a></div><div class="panel" style="max-width:720px"><p>This is optional. Complete it only if you want to bid.</p><div class="kv"><div><div class="label">Name & surname</div><b>${esc(state.me.firstName)} ${esc(state.me.lastName)}</b></div><div><div class="label">Contact number</div><b>${esc(state.me.mobile || "")}</b></div></div><form id="verifyBidderForm" class="admin-form" style="margin-top:18px"><div class="field"><label>ID number</label><input class="input" name="idNumber" autocomplete="off" required></div><div class="notice"><b>Once-off activation: R10</b><br>Yoco securely processes the payment. Successful payment activates your verified bidder status automatically. Your card is not saved and automatic debits are not authorised.</div><button class="btn btn-primary">Continue to secure R10 payment</button></form></div></div></main>${footer()}`;
 }
 function legal() {
   return `${header()}<main class="section"><div class="container"><div class="section-head"><div><div class="label">Compliance</div><h2>Legal centre</h2></div></div><div class="panel legal-list"><a class="legal-link" target="_blank" href="/legal/privacy-policy.pdf"><div><b>POPIA Privacy Notice & Privacy Policy</b><div class="muted small">Version 1.0 · Effective 12 September 2026</div></div><span>Open PDF ↗</span></a><a class="legal-link" target="_blank" href="/legal/terms-auction-rules.pdf"><div><b>App Terms & Master Rules of Auction</b><div class="muted small">Version 1.1 · R10 verification, 2-hour payment and lawful default cap</div></div><span>Open PDF ↗</span></a><a class="legal-link" target="_blank" href="/legal/standard-live-auction-rules-2026.pdf"><div><b>Standard Live Auction Rules - 2026</b><div class="muted small">Version 1.2 · Florida collection, 30 days, courier option and 5% buyer premium</div></div><span>Open PDF ↗</span></a><div class="legal-link"><div><b>PAIA Manual</b><div class="muted small">Available from the Information Officer at rugs.san88@gmail.com. A final web copy will be added when the submitted manual file is supplied to the app repository.</div></div><span>PAIA</span></div></div></div></main>${footer()}`;
@@ -750,25 +756,12 @@ function showMobileMenu() {
     showLogin(false);
   };
 }
-function showLogin(register = false) {
-  modal(
-    `<h2>${register ? "Create bidder account" : "Sign in"}</h2><div class="tabs"><button class="tab ${!register ? "active" : ""}" id="loginTab">Sign in</button><button class="tab ${register ? "active" : ""}" id="registerTab">Register</button></div><div id="authBody">${register ? registerForm() : loginForm()}</div>`,
-  );
-  $("#loginTab").onclick = () => {
-    $("#authBody").innerHTML = loginForm();
-    bindAuth();
-  };
-  $("#registerTab").onclick = () => {
-    $("#authBody").innerHTML = registerForm();
-    bindAuth();
-  };
+function showLogin() {
+  modal(`<h2>Sign in to your Early Access account</h2>${loginForm()}<p class="muted small">No account yet? Use the Early Access signup form on the home page.</p>`);
   bindAuth();
 }
 function loginForm() {
   return `<form id="loginForm" class="admin-form"><div class="field"><label>Email</label><input class="input" name="email" type="email" required></div><div class="field"><label>Password</label><input class="input" name="password" type="password" required></div><button class="btn btn-primary">Sign in</button></form>`;
-}
-function registerForm() {
-  return `<form id="registerForm" class="admin-form"><div class="form-grid"><div class="field"><label>Name</label><input class="input" name="firstName" autocomplete="given-name" required></div><div class="field"><label>Surname</label><input class="input" name="lastName" autocomplete="family-name" required></div></div><div class="form-grid"><div class="field"><label>Contact number</label><input class="input" name="mobile" autocomplete="tel" inputmode="tel" required></div><div class="field"><label>ID number</label><input class="input" name="idNumber" autocomplete="off" required></div></div><div class="field"><label>Email <span class="muted">(used to sign in)</span></label><input class="input" type="email" name="email" autocomplete="email" required></div><div class="field"><label>Password</label><input class="input" type="password" minlength="10" name="password" autocomplete="new-password" required></div><label class="switch"><input type="checkbox" name="confirmAdult" required> I confirm that I am 18 years or older.</label><label class="switch"><input type="checkbox" name="acceptTerms" required> I accept the <a href="/legal/terms-auction-rules.pdf" target="_blank">Terms & Auction Rules</a>.</label><label class="switch"><input type="checkbox" name="acceptPrivacy" required> I have read the <a href="/legal/privacy-policy.pdf" target="_blank">POPIA Privacy Notice</a>.</label><label class="switch"><input type="checkbox" name="marketingOptIn"> I want to receive Whacky Auctions marketing (optional).</label><button class="btn btn-primary">Create bidder account</button><p class="muted small">Verification details collected: name, surname, contact number and ID number. Email and password are only used for account access.</p></form>`;
 }
 function bindAuth() {
   const lf = $("#loginForm");
@@ -785,35 +778,6 @@ function bindAuth() {
         closeModal();
         toast("Signed in.");
         render();
-      } catch (x) {
-        toast(x.message, true);
-      }
-    };
-  const rf = $("#registerForm");
-  if (rf)
-    rf.onsubmit = async (e) => {
-      e.preventDefault();
-      const f = new FormData(rf);
-      try {
-        const d = await api("register", {
-          method: "POST",
-          body: {
-            firstName: f.get("firstName"),
-            lastName: f.get("lastName"),
-            email: f.get("email"),
-            mobile: f.get("mobile"),
-            idNumber: f.get("idNumber"),
-            password: f.get("password"),
-            confirmAdult: f.get("confirmAdult") === "on",
-            acceptTerms: f.get("acceptTerms") === "on",
-            acceptPrivacy: f.get("acceptPrivacy") === "on",
-            marketingOptIn: f.get("marketingOptIn") === "on",
-          },
-        });
-        state.me = d.me;
-        closeModal();
-        toast(d.message);
-        go("/profile");
       } catch (x) {
         toast(x.message, true);
       }
@@ -835,12 +799,16 @@ function bindEarlyAccess() {
           lastName: f.get("lastName"),
           email: f.get("email"),
           mobile: f.get("mobile"),
+          password: f.get("password"),
+          confirmAdult: f.get("confirmAdult") === "on",
+          acceptTerms: f.get("acceptTerms") === "on",
           acceptPrivacy: f.get("acceptPrivacy") === "on",
           marketingOptIn: f.get("marketingOptIn") === "on",
         },
       });
-      form.innerHTML = `<div class="join-success"><div>✓</div><h2>You’re in the room!</h2><p>${esc(d.message)}</p><a class="btn btn-secondary" href="/" data-link>Preview the marketplace</a></div>`;
-      toast("Early-access spot saved.");
+      state.me = d.me;
+      toast(d.message);
+      go("/profile");
     } catch (x) {
       toast(x.message, true);
       button.disabled = false;
@@ -967,17 +935,20 @@ async function bind() {
         payNow.disabled = false;
       }
     };
-  const verifyBidder = $("#verifyBidder");
-  if (verifyBidder)
-    verifyBidder.onclick = async () => {
-      verifyBidder.disabled = true;
+  const verifyBidderForm = $("#verifyBidderForm");
+  if (verifyBidderForm)
+    verifyBidderForm.onsubmit = async (e) => {
+      e.preventDefault();
+      const button = verifyBidderForm.querySelector("button");
+      const form = new FormData(verifyBidderForm);
+      button.disabled = true;
       try {
-        const d = await api("me/verification/checkout", { method: "POST" });
+        const d = await api("me/verification/checkout", { method: "POST", body: { idNumber: form.get("idNumber") } });
         if (d.redirectUrl) location.href = d.redirectUrl;
         else toast(d.message || "Bidder verification is already complete.");
       } catch (e) {
         toast(e.message, true);
-        verifyBidder.disabled = false;
+        button.disabled = false;
       }
     };
   const pb = $("#placeBid");
@@ -1347,6 +1318,7 @@ async function render() {
     else if (r === "watchlist") html = await accountList("watchlist");
     else if (r === "wins") html = await accountList("wins");
     else if (r === "profile") html = await profile();
+    else if (r === "verify-bidder") html = verifyBidderPage();
     else if (r === "legal") html = legal();
     else if (r === "install") html = installPage();
     else if (r.startsWith("rules/")) html = await rulesPage(r.split("/")[1]);

@@ -7,35 +7,45 @@ const api = fs.readFileSync("netlify/functions/api.mts", "utf8");
 for (const required of [
   'id="early-access"',
   'function earlyAccessForm()',
-  'href="/join"',
-  'go("/profile")',
-  'name="firstName"',
-  'name="lastName"',
-  'name="mobile"',
-  'name="idNumber"',
-  'name="confirmAdult"',
-  "Verification status",
-  "Admin controls",
+  'Create my Early Access account',
+  'Sign in to your Early Access account',
+  'href="/verify-bidder"',
+  'function verifyBidderPage()',
+  'else if (r === "verify-bidder") html = verifyBidderPage()',
+  'id="verifyBidderForm"',
+  'Continue to secure R10 payment',
 ]) assert.ok(app.includes(required), `Missing bidder-flow requirement: ${required}`);
 
-assert.ok(!app.includes('href="/register"'), "Public navigation must not link directly to bidder verification.");
-assert.ok(!app.includes('function bidderSignupPage()'), "Standalone verified-bidder signup page must be removed.");
-assert.ok(app.includes('id="verifyBidder"'), "R10 verification action must remain on the account page.");
-assert.ok(app.includes('Activate verified bidder status — R10'), "The account page must clearly display the R10 activation price.");
+assert.ok(!app.includes('id="registerTab"'), "The sign-in modal must not contain a Register tab.");
+assert.ok(!app.includes('id="registerForm"'), "Bidder registration must not appear beside sign in.");
+assert.ok(!app.includes('href="/register"'), "Public navigation must not link directly to bidder registration.");
 
-const formStart = app.indexOf("function registerForm()");
-const formEnd = app.indexOf("function bindAuth()", formStart);
-const form = app.slice(formStart, formEnd);
-assert.ok(formStart >= 0 && formEnd > formStart, "Could not isolate bidder registration form.");
-assert.ok(!form.includes('name="physicalAddress"'), "Physical address must not appear in bidder registration.");
-assert.ok(!form.includes('name="dateOfBirth"'), "Date of birth must not appear in bidder registration.");
+const earlyFormStart = app.indexOf("function earlyAccessForm()");
+const earlyFormEnd = app.indexOf("async function auctionPage", earlyFormStart);
+const earlyForm = app.slice(earlyFormStart, earlyFormEnd);
+for (const field of ['name="firstName"', 'name="lastName"', 'name="email"', 'name="mobile"', 'name="password"', 'name="confirmAdult"'])
+  assert.ok(earlyForm.includes(field), `Early Access account form is missing ${field}.`);
+assert.ok(!earlyForm.includes('name="idNumber"'), "Early Access must not collect the bidder ID number.");
 
-const registrationStart = api.indexOf('parts[0] === "register"');
-const registrationEnd = api.indexOf('parts[0] === "login"', registrationStart);
-const registration = api.slice(registrationStart, registrationEnd);
-assert.ok(registration.includes("!b.confirmAdult"), "Adult confirmation must be checked server-side.");
-assert.ok(!registration.includes("b.physicalAddress"), "API must not require a physical address.");
-assert.ok(!registration.includes("b.dateOfBirth"), "API must not require a date of birth.");
-assert.ok(registration.includes("NULL,NULL"), "Removed fields must be stored as NULL for schema compatibility.");
+const verificationPageStart = app.indexOf("function verifyBidderPage()");
+const verificationPageEnd = app.indexOf("function legal()", verificationPageStart);
+const verificationPage = app.slice(verificationPageStart, verificationPageEnd);
+assert.ok(verificationPage.includes('name="idNumber"'), "The separate bidder page must collect the ID number.");
+assert.ok(verificationPage.includes("R10"), "The separate bidder page must disclose the R10 activation fee.");
+
+const earlyApiStart = api.indexOf('parts[0] === "early-access"');
+const loginApiStart = api.indexOf('parts[0] === "login"', earlyApiStart);
+const earlyApi = api.slice(earlyApiStart, loginApiStart);
+assert.ok(earlyApi.includes("hashPassword(password)"), "Early Access signup must create login credentials.");
+assert.ok(earlyApi.includes("createSession(uid)"), "Early Access signup must sign the new account in.");
+assert.ok(earlyApi.includes("NULL,NULL,NULL"), "Early Access account must not collect bidder identity details.");
+assert.ok(!api.includes('parts[0] === "register"'), "The obsolete public registration API must be removed.");
+
+const checkoutStart = api.indexOf('parts[2] === "checkout"');
+const checkoutEnd = api.indexOf('parts[0] === "auctions"', checkoutStart);
+const checkout = api.slice(checkoutStart, checkoutEnd);
+assert.ok(checkout.includes("idNumber"), "Verification checkout must require the ID number.");
+assert.ok(checkout.includes("amountCents:1000"), "Verification checkout amount must remain R10.");
+assert.ok(checkout.includes("/verify-bidder?verification=return"), "Yoco must return to the separate bidder page.");
 
 console.log("Whacky Auctions bidder-flow checks passed.");

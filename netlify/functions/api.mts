@@ -268,59 +268,31 @@ async function handle(req: Request) {
     const lastName = clean(b.lastName, 80);
     const email = clean(b.email, 320).toLowerCase();
     const mobile = clean(b.mobile, 40);
-    if (!firstName || !lastName || !email.includes("@") || mobile.length < 8)
-      return fail("Please complete your name, email address and mobile number.");
+    const password = String(b.password || "");
+    if (!firstName || !lastName || !email.includes("@") || mobile.length < 8 || password.length < 10)
+      return fail("Please complete your name, email address, mobile number and a password of at least 10 characters.");
+    if (!b.confirmAdult) return fail("You must confirm that you are 18 or older.");
+    if (!b.acceptTerms) return fail("Please accept the Terms & Auction Rules.");
     if (!b.acceptPrivacy)
       return fail("Please read and accept the Privacy Notice to join early access.");
-    const existing = await db.sql`SELECT 1 FROM early_access_signups WHERE email=${email} LIMIT 1`;
-    if (existing.length)
-      return ok({ message: "You are already on the early-access list. We’ll let you know when bidding opens." });
-    const signupId = id();
+    const existingUser = await db.sql`SELECT 1 FROM users WHERE email=${email} LIMIT 1`;
+    if (existingUser.length) return fail("An account already exists for this email. Please sign in.", 409);
+    const existing = await db.sql`SELECT id FROM early_access_signups WHERE email=${email} LIMIT 1`;
+    const signupId = existing[0]?.id || id();
     const acceptedAt = new Date().toISOString();
-    await db.sql`INSERT INTO early_access_signups(id,first_name,last_name,email,mobile,marketing_opt_in,accepted_privacy_at,ip_address)
-                 VALUES(${signupId},${firstName},${lastName},${email},${mobile},${!!b.marketingOptIn},${acceptedAt},${getClientIp(req)})`;
-    await audit(null, "early_access_signup", "early_access", signupId, { email, marketingOptIn: !!b.marketingOptIn }, req);
-    return ok({ message: "Your spot is saved. We’ll let you know as soon as Whacky Auctions is ready to open." }, 201);
-  }
-
-  if (method === "POST" && parts[0] === "register") {
-    const b = await req.json();
-    const email = clean(b.email, 320).toLowerCase();
-    const password = String(b.password || "");
-    if (!email.includes("@") || password.length < 10)
-      return fail(
-        "Use a valid email and a password of at least 10 characters.",
-      );
-    if (
-      !clean(b.firstName, 80) ||
-      !clean(b.lastName, 80) ||
-      !clean(b.mobile, 40) ||
-      !clean(b.idNumber, 80)
-    )
-      return fail("Complete all bidder registration details.");
-    if (!b.confirmAdult) return fail("You must confirm that you are 18 or older.");
-    if (!b.acceptTerms || !b.acceptPrivacy)
-      return fail("You must accept the Terms and Privacy Notice.");
-    const exists = await db.sql`SELECT 1 FROM users WHERE email=${email}`;
-    if (exists.length)
-      return fail("An account already exists for this email.", 409);
+    if (!existing.length)
+      await db.sql`INSERT INTO early_access_signups(id,first_name,last_name,email,mobile,marketing_opt_in,accepted_privacy_at,ip_address)
+                   VALUES(${signupId},${firstName},${lastName},${email},${mobile},${!!b.marketingOptIn},${acceptedAt},${getClientIp(req)})`;
+    else
+      await db.sql`UPDATE early_access_signups SET first_name=${firstName},last_name=${lastName},mobile=${mobile},marketing_opt_in=${!!b.marketingOptIn},accepted_privacy_at=${acceptedAt},ip_address=${getClientIp(req)} WHERE id=${signupId}`;
     const hp = await hashPassword(password);
     const uid = id();
-    const now = new Date().toISOString();
     await db.sql`INSERT INTO users(id,email,password_hash,password_salt,first_name,last_name,mobile,id_number,date_of_birth,physical_address,marketing_opt_in,accepted_terms_at,accepted_privacy_at)
-                 VALUES(${uid},${email},${hp.hash},${hp.salt},${clean(b.firstName, 80)},${clean(b.lastName, 80)},${clean(b.mobile, 40)},${clean(b.idNumber, 80)},NULL,NULL,${!!b.marketingOptIn},${now},${now})`;
-    await audit(uid, "register", "user", uid, { email }, req);
+                 VALUES(${uid},${email},${hp.hash},${hp.salt},${firstName},${lastName},${mobile},NULL,NULL,NULL,${!!b.marketingOptIn},${acceptedAt},${acceptedAt})`;
+    await audit(uid, "early_access_account_created", "early_access", signupId, { email, marketingOptIn: !!b.marketingOptIn }, req);
     const cookie = await createSession(uid);
-    const u = (await db.sql`SELECT * FROM users WHERE id=${uid}`)[0];
-    return ok(
-      {
-        me: safeUser(u),
-        message:
-          "Account created. Complete the once-off R10 Yoco bidder verification to activate bidding.",
-      },
-      201,
-      { "set-cookie": cookie },
-    );
+    const account = (await db.sql`SELECT * FROM users WHERE id=${uid}`)[0];
+    return ok({ me: safeUser(account), message: "Your free Early Access account is ready." }, 201, { "set-cookie": cookie });
   }
 
   if (method === "POST" && parts[0] === "login") {
@@ -381,15 +353,19 @@ async function handle(req: Request) {
   if (method === "POST" && parts[0] === "me" && parts[1] === "verification" && parts[2] === "checkout") {
     const u = await requireUser(req);
     if (u.verified) return ok({ verified: true, message: "Your bidder account is already verified." });
+    const b = await req.json();
+    const idNumber = clean(b.idNumber, 80);
+    if (!idNumber) return fail("Enter your ID number to continue with bidder verification.");
     const settings = await getSettings();
     if (!settings.payment_gateway_enabled) return fail("Yoco bidder verification is not available yet.",503);
     const outstanding = await db.sql`SELECT 1 FROM orders WHERE user_id=${u.id} AND status='defaulted' AND COALESCE(default_fee_cents,0)>0 LIMIT 1`;
     if (outstanding.length) return fail("Your bidder account has an outstanding default charge. Please contact Whacky Auctions before re-verification.",403);
+    await db.sql`UPDATE users SET id_number=${idNumber} WHERE id=${u.id}`;
     const verificationId=id();
     await db.sql`INSERT INTO bidder_verification_payments(id,user_id,amount_cents,status) VALUES(${verificationId},${u.id},1000,'pending')`;
     const base=new URL(req.url).origin;
     try {
-      const checkout=await createCheckout({orderId:verificationId,auctionId:"bidder-verification",userId:u.id,email:u.email,amountCents:1000,description:"Whacky Auctions bidder verification",returnUrl:`${base}/profile?verification=return`,cancelUrl:`${base}/profile?verification=cancelled`,notifyUrl:`${base}/api/payments/webhook`,purpose:"bidder-verification",verificationId});
+      const checkout=await createCheckout({orderId:verificationId,auctionId:"bidder-verification",userId:u.id,email:u.email,amountCents:1000,description:"Whacky Auctions bidder verification",returnUrl:`${base}/verify-bidder?verification=return`,cancelUrl:`${base}/verify-bidder?verification=cancelled`,notifyUrl:`${base}/api/payments/webhook`,purpose:"bidder-verification",verificationId});
       await db.sql`UPDATE bidder_verification_payments SET payment_reference=${checkout.providerReference||null},updated_at=NOW() WHERE id=${verificationId}`;
       await audit(u.id,"bidder_verification_checkout_started","verification",verificationId,{amountCents:1000},req);
       return ok({redirectUrl:checkout.redirectUrl,amountCents:1000});
