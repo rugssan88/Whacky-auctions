@@ -3,17 +3,21 @@ import assert from "node:assert/strict";
 
 const app = fs.readFileSync("public/app.js", "utf8");
 const api = fs.readFileSync("netlify/functions/api.mts", "utf8");
+const migration = fs.readFileSync("netlify/database/migrations/007_early_access_account_claims/migration.sql", "utf8");
 
 for (const required of [
   'id="early-access"',
   'function earlyAccessForm()',
-  'Create my Early Access account',
+  'Join Early Access',
+  'function bindEarlyAccessAccount(',
   'Sign in to your Early Access account',
   'href="/verify-bidder"',
-  'function verifyBidderPage()',
-  'else if (r === "verify-bidder") html = verifyBidderPage()',
+  'async function verifyBidderPage()',
+  'else if (r === "verify-bidder") html = await verifyBidderPage()',
   'id="verifyBidderForm"',
+  'Activate my bidder status free',
   'Continue to secure R10 payment',
+  'function trackFunnel(event)',
 ]) assert.ok(app.includes(required), `Missing bidder-flow requirement: ${required}`);
 
 assert.ok(!app.includes('id="registerTab"'), "The sign-in modal must not contain a Register tab.");
@@ -23,29 +27,32 @@ assert.ok(!app.includes('href="/register"'), "Public navigation must not link di
 const earlyFormStart = app.indexOf("function earlyAccessForm()");
 const earlyFormEnd = app.indexOf("async function auctionPage", earlyFormStart);
 const earlyForm = app.slice(earlyFormStart, earlyFormEnd);
-for (const field of ['name="firstName"', 'name="lastName"', 'name="email"', 'name="mobile"', 'name="password"', 'name="confirmAdult"'])
-  assert.ok(earlyForm.includes(field), `Early Access account form is missing ${field}.`);
-assert.ok(!earlyForm.includes('name="idNumber"'), "Early Access must not collect the bidder ID number.");
+for (const field of ['name="fullName"', 'name="email"', 'name="mobile"'])
+  assert.ok(earlyForm.includes(field), `Early Access form is missing ${field}.`);
+for (const forbidden of ['name="idNumber"', 'name="password"', 'name="confirmAdult"', 'name="acceptTerms"'])
+  assert.ok(!earlyForm.includes(forbidden), `Initial Early Access form must not contain ${forbidden}.`);
 
-const verificationPageStart = app.indexOf("function verifyBidderPage()");
+const verificationPageStart = app.indexOf("async function verifyBidderPage()");
 const verificationPageEnd = app.indexOf("function legal()", verificationPageStart);
 const verificationPage = app.slice(verificationPageStart, verificationPageEnd);
 assert.ok(verificationPage.includes('name="idNumber"'), "The separate bidder page must collect the ID number.");
-assert.ok(verificationPage.includes("R10"), "The separate bidder page must disclose the R10 activation fee.");
+assert.ok(verificationPage.includes("freeActivationEligible"), "The bidder page must show first-100 free eligibility.");
 
-const earlyApiStart = api.indexOf('parts[0] === "early-access"');
-const loginApiStart = api.indexOf('parts[0] === "login"', earlyApiStart);
-const earlyApi = api.slice(earlyApiStart, loginApiStart);
-assert.ok(earlyApi.includes("hashPassword(password)"), "Early Access signup must create login credentials.");
-assert.ok(earlyApi.includes("createSession(uid)"), "Early Access signup must sign the new account in.");
-assert.ok(earlyApi.includes("NULL,NULL,NULL"), "Early Access account must not collect bidder identity details.");
-assert.ok(!api.includes('parts[0] === "register"'), "The obsolete public registration API must be removed.");
+for (const required of [
+  'parts[0] === "funnel-event"',
+  'parts[0] === "early-access" && parts.length === 1',
+  'parts[0] === "early-access" && parts[1] === "account"',
+  'randomToken(24)',
+  'hashPassword(password)',
+  'createSession(uid)',
+  'signupRank <= 100',
+  'bidder_verification_waived',
+  'amountCents:1000',
+  '/verify-bidder?verification=return',
+]) assert.ok(api.includes(required), `API is missing bidder-flow requirement: ${required}`);
 
-const checkoutStart = api.indexOf('parts[2] === "checkout"');
-const checkoutEnd = api.indexOf('parts[0] === "auctions"', checkoutStart);
-const checkout = api.slice(checkoutStart, checkoutEnd);
-assert.ok(checkout.includes("idNumber"), "Verification checkout must require the ID number.");
-assert.ok(checkout.includes("amountCents:1000"), "Verification checkout amount must remain R10.");
-assert.ok(checkout.includes("/verify-bidder?verification=return"), "Yoco must return to the separate bidder page.");
+assert.ok(!api.includes('parts[0] === "register"'), "The obsolete public registration API must remain removed.");
+assert.ok(migration.includes("account_token_hash"), "Account-claim token migration is missing.");
+assert.ok(migration.includes("claimed_user_id"), "Account claim must be linked to a user.");
 
 console.log("Whacky Auctions bidder-flow checks passed.");

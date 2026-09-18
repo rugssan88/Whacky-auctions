@@ -25,6 +25,7 @@ import {
   asCents,
   getClientIp,
   sha256,
+  randomToken,
 } from "./lib/core.mts";
 import { createCheckout } from "./lib/payment-gateway.mts";
 
@@ -213,6 +214,24 @@ async function handle(req: Request) {
                  VALUES(${id()},NULL,'page_view','page',${viewPath},${JSON.stringify({ path: viewPath })}::jsonb,NULL)`;
     return ok({ recorded: true }, 201);
   }
+  if (method === "POST" && parts[0] === "funnel-event") {
+    const body = await req.json().catch(() => ({}));
+    const event = clean(body.event, 80);
+    const allowed = new Set([
+      "early_access_form_start",
+      "early_access_submit_error",
+      "early_access_signup_success",
+      "early_access_account_step",
+      "early_access_account_success",
+      "verification_page_view",
+      "verification_submit_error",
+      "verification_free_activation",
+      "verification_checkout_started",
+    ]);
+    if (!allowed.has(event)) return fail("Unknown funnel event.");
+    await audit(user?.id || null, event, "signup_funnel", null, { path: clean(body.path, 200) || "/" }, req);
+    return ok({ recorded: true }, 201);
+  }
   if (method === "POST" && parts[0] === "admin" && parts[1] === "setup") {
     const existing =
       await db.sql`SELECT 1 FROM users WHERE role='admin' LIMIT 1`;
@@ -262,34 +281,61 @@ async function handle(req: Request) {
     return ok({ count: Number(rows[0]?.count || 0) });
   }
 
-  if (method === "POST" && parts[0] === "early-access") {
+  if (method === "POST" && parts[0] === "early-access" && parts.length === 1) {
     const b = await req.json();
-    const firstName = clean(b.firstName, 80);
-    const lastName = clean(b.lastName, 80);
+    const fullName = clean(b.fullName, 160).replace(/\s+/g, " ");
+    const names = fullName.split(" ");
+    const firstName = clean(names.shift(), 80);
+    const lastName = clean(names.join(" "), 80);
     const email = clean(b.email, 320).toLowerCase();
     const mobile = clean(b.mobile, 40);
-    const password = String(b.password || "");
-    if (!firstName || !lastName || !email.includes("@") || mobile.length < 8 || password.length < 10)
-      return fail("Please complete your name, email address, mobile number and a password of at least 10 characters.");
-    if (!b.confirmAdult) return fail("You must confirm that you are 18 or older.");
-    if (!b.acceptTerms) return fail("Please accept the Terms & Auction Rules.");
-    if (!b.acceptPrivacy)
-      return fail("Please read and accept the Privacy Notice to join early access.");
-    const existingUser = await db.sql`SELECT 1 FROM users WHERE email=${email} LIMIT 1`;
+    if (!firstName || !lastName || !email.includes("@") || mobile.length < 8)
+      return fail("Please enter your name and surname, email address and mobile number.");
+    const existingUser = await db.sql`SELECT id FROM users WHERE email=${email} LIMIT 1`;
     if (existingUser.length) return fail("An account already exists for this email. Please sign in.", 409);
-    const existing = await db.sql`SELECT id FROM early_access_signups WHERE email=${email} LIMIT 1`;
+    const existing = await db.sql`SELECT id,claimed_user_id FROM early_access_signups WHERE email=${email} LIMIT 1`;
+    if (existing[0]?.claimed_user_id) return fail("Your Early Access account already exists. Please sign in.", 409);
     const signupId = existing[0]?.id || id();
     const acceptedAt = new Date().toISOString();
+    const accountToken = randomToken(24);
+    const accountTokenHash = sha256(accountToken);
     if (!existing.length)
-      await db.sql`INSERT INTO early_access_signups(id,first_name,last_name,email,mobile,marketing_opt_in,accepted_privacy_at,ip_address)
-                   VALUES(${signupId},${firstName},${lastName},${email},${mobile},${!!b.marketingOptIn},${acceptedAt},${getClientIp(req)})`;
+      await db.sql`INSERT INTO early_access_signups(id,first_name,last_name,email,mobile,marketing_opt_in,accepted_privacy_at,ip_address,account_token_hash,account_token_expires_at)
+                   VALUES(${signupId},${firstName},${lastName},${email},${mobile},${!!b.marketingOptIn},${acceptedAt},${getClientIp(req)},${accountTokenHash},NOW()+INTERVAL '30 minutes')`;
     else
-      await db.sql`UPDATE early_access_signups SET first_name=${firstName},last_name=${lastName},mobile=${mobile},marketing_opt_in=${!!b.marketingOptIn},accepted_privacy_at=${acceptedAt},ip_address=${getClientIp(req)} WHERE id=${signupId}`;
+      await db.sql`UPDATE early_access_signups SET first_name=${firstName},last_name=${lastName},mobile=${mobile},marketing_opt_in=${!!b.marketingOptIn},accepted_privacy_at=${acceptedAt},ip_address=${getClientIp(req)},account_token_hash=${accountTokenHash},account_token_expires_at=NOW()+INTERVAL '30 minutes' WHERE id=${signupId}`;
+    const rankRows = await db.sql`SELECT COUNT(*)::int AS rank FROM early_access_signups WHERE created_at <= (SELECT created_at FROM early_access_signups WHERE id=${signupId})`;
+    const signupRank = Number(rankRows[0]?.rank || 0);
+    await audit(null, "early_access_signup", "early_access", signupId, { signupRank, freeActivationEligible: signupRank <= 100 }, req);
+    return ok({
+      message: signupRank <= 100 ? "Your spot is saved — you qualify for free bidder activation." : "Your Early Access spot is saved.",
+      accountToken,
+      email,
+      signupRank,
+      freeActivationEligible: signupRank <= 100,
+    }, 201);
+  }
+
+  if (method === "POST" && parts[0] === "early-access" && parts[1] === "account") {
+    const b = await req.json();
+    const email = clean(b.email, 320).toLowerCase();
+    const tokenHash = sha256(String(b.accountToken || ""));
+    const password = String(b.password || "");
+    if (password.length < 10) return fail("Use a password of at least 10 characters.");
+    if (!b.confirmAdult) return fail("You must confirm that you are 18 or older.");
+    if (!b.acceptTerms) return fail("Please accept the Terms & Auction Rules.");
+    const rows = await db.sql`SELECT * FROM early_access_signups WHERE email=${email} AND account_token_hash=${tokenHash} AND account_token_expires_at > NOW() AND claimed_user_id IS NULL LIMIT 1`;
+    const signup = rows[0];
+    if (!signup) return fail("This account-creation link has expired. Please submit the Early Access form again.", 410);
+    const existingUser = await db.sql`SELECT 1 FROM users WHERE email=${email} LIMIT 1`;
+    if (existingUser.length) return fail("An account already exists for this email. Please sign in.", 409);
     const hp = await hashPassword(password);
     const uid = id();
+    const acceptedAt = new Date().toISOString();
     await db.sql`INSERT INTO users(id,email,password_hash,password_salt,first_name,last_name,mobile,id_number,date_of_birth,physical_address,marketing_opt_in,accepted_terms_at,accepted_privacy_at)
-                 VALUES(${uid},${email},${hp.hash},${hp.salt},${firstName},${lastName},${mobile},NULL,NULL,NULL,${!!b.marketingOptIn},${acceptedAt},${acceptedAt})`;
-    await audit(uid, "early_access_account_created", "early_access", signupId, { email, marketingOptIn: !!b.marketingOptIn }, req);
+                 VALUES(${uid},${email},${hp.hash},${hp.salt},${signup.first_name},${signup.last_name},${signup.mobile},NULL,NULL,NULL,${!!signup.marketing_opt_in},${acceptedAt},${signup.accepted_privacy_at})`;
+    await db.sql`UPDATE early_access_signups SET claimed_user_id=${uid},account_token_hash=NULL,account_token_expires_at=NULL WHERE id=${signup.id}`;
+    await audit(uid, "early_access_account_created", "early_access", signup.id, { email }, req);
     const cookie = await createSession(uid);
     const account = (await db.sql`SELECT * FROM users WHERE id=${uid}`)[0];
     return ok({ me: safeUser(account), message: "Your free Early Access account is ready." }, 201, { "set-cookie": cookie });
@@ -347,7 +393,9 @@ async function handle(req: Request) {
   if (method === "GET" && parts[0] === "me" && parts[1] === "verification") {
     const u = await requireUser(req);
     const latest = (await db.sql`SELECT status,amount_cents,paid_at,created_at FROM bidder_verification_payments WHERE user_id=${u.id} ORDER BY created_at DESC LIMIT 1`)[0] || null;
-    return ok({ verified: !!u.verified, amountCents: 1000, latest });
+    const rankRows = await db.sql`SELECT COUNT(*)::int AS rank FROM early_access_signups WHERE created_at <= (SELECT created_at FROM early_access_signups WHERE email=${u.email} LIMIT 1)`;
+    const signupRank = Number(rankRows[0]?.rank || 0);
+    return ok({ verified: !!u.verified, amountCents: signupRank > 0 && signupRank <= 100 ? 0 : 1000, freeActivationEligible: signupRank > 0 && signupRank <= 100, signupRank, latest });
   }
 
   if (method === "POST" && parts[0] === "me" && parts[1] === "verification" && parts[2] === "checkout") {
@@ -356,11 +404,19 @@ async function handle(req: Request) {
     const b = await req.json();
     const idNumber = clean(b.idNumber, 80);
     if (!idNumber) return fail("Enter your ID number to continue with bidder verification.");
-    const settings = await getSettings();
-    if (!settings.payment_gateway_enabled) return fail("Yoco bidder verification is not available yet.",503);
     const outstanding = await db.sql`SELECT 1 FROM orders WHERE user_id=${u.id} AND status='defaulted' AND COALESCE(default_fee_cents,0)>0 LIMIT 1`;
     if (outstanding.length) return fail("Your bidder account has an outstanding default charge. Please contact Whacky Auctions before re-verification.",403);
     await db.sql`UPDATE users SET id_number=${idNumber} WHERE id=${u.id}`;
+    const rankRows = await db.sql`SELECT COUNT(*)::int AS rank FROM early_access_signups WHERE created_at <= (SELECT created_at FROM early_access_signups WHERE email=${u.email} LIMIT 1)`;
+    const signupRank = Number(rankRows[0]?.rank || 0);
+    if (signupRank > 0 && signupRank <= 100) {
+      await db.sql`UPDATE users SET verified=TRUE WHERE id=${u.id} AND suspended=FALSE`;
+      await db.sql`INSERT INTO notifications(id,user_id,type,message) VALUES(${id()},${u.id},'bidder_verified','Your free founding-member bidder activation is complete. You may bid when auctions open.')`;
+      await audit(u.id,"bidder_verification_waived","verification",u.id,{signupRank,amountCents:0},req);
+      return ok({ verified: true, freeActivation: true, amountCents: 0, message: "Your free bidder activation is complete." });
+    }
+    const settings = await getSettings();
+    if (!settings.payment_gateway_enabled) return fail("Yoco bidder verification is not available yet.",503);
     const verificationId=id();
     await db.sql`INSERT INTO bidder_verification_payments(id,user_id,amount_cents,status) VALUES(${verificationId},${u.id},1000,'pending')`;
     const base=new URL(req.url).origin;
@@ -870,6 +926,10 @@ async function handle(req: Request) {
         earlyAccess,
         viewsToday,
         viewsThirtyDays,
+        funnelStarts,
+        funnelSignups,
+        funnelAccounts,
+        funnelVerificationStarts,
       ] = await Promise.all([
         db.sql`SELECT COUNT(*)::int c FROM users`,
         db.sql`SELECT COUNT(*)::int c FROM users WHERE role='bidder'`,
@@ -881,6 +941,10 @@ async function handle(req: Request) {
         db.sql`SELECT COUNT(*)::int c FROM early_access_signups`,
         db.sql`SELECT COUNT(*)::int c FROM audit_log WHERE action='page_view' AND created_at >= (date_trunc('day', NOW() AT TIME ZONE 'Africa/Johannesburg') AT TIME ZONE 'Africa/Johannesburg')`,
         db.sql`SELECT COUNT(*)::int c FROM audit_log WHERE action='page_view' AND created_at >= NOW() - INTERVAL '30 days'`,
+        db.sql`SELECT COUNT(*)::int c FROM audit_log WHERE action='early_access_form_start' AND created_at >= NOW() - INTERVAL '30 days'`,
+        db.sql`SELECT COUNT(*)::int c FROM audit_log WHERE action='early_access_signup_success' AND created_at >= NOW() - INTERVAL '30 days'`,
+        db.sql`SELECT COUNT(*)::int c FROM audit_log WHERE action='early_access_account_success' AND created_at >= NOW() - INTERVAL '30 days'`,
+        db.sql`SELECT COUNT(*)::int c FROM audit_log WHERE action IN ('verification_free_activation','verification_checkout_started') AND created_at >= NOW() - INTERVAL '30 days'`,
       ]);
       return ok({
         stats: {
@@ -894,6 +958,10 @@ async function handle(req: Request) {
           earlyAccess: earlyAccess[0].c,
           viewsToday: viewsToday[0].c,
           viewsThirtyDays: viewsThirtyDays[0].c,
+          funnelStarts: funnelStarts[0].c,
+          funnelSignups: funnelSignups[0].c,
+          funnelAccounts: funnelAccounts[0].c,
+          funnelVerificationStarts: funnelVerificationStarts[0].c,
         },
         settings: await getSettings(),
       });
