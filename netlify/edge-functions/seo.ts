@@ -18,7 +18,7 @@ export default async (request: Request, context: any) => {
   if (url.pathname === "/sitemap.xml") {
     const response = await fetch(`${url.origin}/api/auctions`);
     const data = response.ok ? await response.json() : { auctions: [] };
-    const fixed = ["/", "/join", "/legal", "/install"];
+    const fixed = ["/", "/auctions", "/how-it-works", "/about", "/contact", "/join", "/legal", "/install"];
     const lots = (data.auctions || []).map((a: any) => `/auction/${encodeURIComponent(a.slug || a.id)}`);
     const urls = [...fixed, ...lots].map((path) => `  <url><loc>${SITE}${path}</loc><changefreq>${path.startsWith("/auction/") ? "daily" : "weekly"}</changefreq></url>`).join("\n");
     return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>`, { headers: { ...headers, "Content-Type": "application/xml; charset=utf-8" } });

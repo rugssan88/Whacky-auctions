@@ -1,0 +1,26 @@
+# Whacky Auctions
+
+> Whacky Auctions is a South African online auction platform based in Florida, Gauteng. Listings use real item photos, clear condition notes, transparent opening bids and a fair two-minute soft close.
+
+## Main pages
+
+- [Home](https://www.whackyauctions.co.za/): Overview of Whacky Auctions.
+- [Auctions](https://www.whackyauctions.co.za/auctions): Live, upcoming and preview auction items.
+- [How it works](https://www.whackyauctions.co.za/how-it-works): Bidder activation, bidding, soft-close, payment and collection process.
+- [About](https://www.whackyauctions.co.za/about): Background and operating principles.
+- [Contact](https://www.whackyauctions.co.za/contact): Customer support and information-officer contact details.
+- [Early access](https://www.whackyauctions.co.za/join): Registration for auction launch updates.
+- [Legal centre](https://www.whackyauctions.co.za/legal): Auction rules, terms, privacy and compliance documents.
+
+## Important information
+
+- Currency: South African rand (ZAR).
+- Location: Florida, Gauteng, South Africa.
+- Contact: info@whackyauctions.co.za.
+- Auction item condition and collection requirements are disclosed on each listing.
+- Bidding is subject to bidder activation and the published auction rules.
+
+## Machine-readable discovery
+
+- [Sitemap](https://www.whackyauctions.co.za/sitemap.xml)
+- [Robots](https://www.whackyauctions.co.za/robots.txt)

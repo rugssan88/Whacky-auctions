@@ -1522,6 +1522,6 @@ window.addEventListener("beforeinstallprompt", (e) => {
 });
 if ("serviceWorker" in navigator)
   window.addEventListener("load", () =>
-    navigator.serviceWorker.register("/sw.js").catch(console.error),
+    navigator.serviceWorker.register("/sw.min.js").catch(console.error),
   );
 bootstrap();

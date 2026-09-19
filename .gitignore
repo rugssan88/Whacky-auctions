@@ -2,3 +2,13 @@ node_modules
 .netlify
 .env
 .DS_Store
+public/app.min.js
+public/styles.min.css
+public/sw.min.js
+public/about/
+public/auctions/
+public/contact/
+public/how-it-works/
+public/install/
+public/join/
+public/legal/index.html

@@ -17,7 +17,7 @@
     Strict-Transport-Security = "max-age=31536000; includeSubDomains"
 
 [[headers]]
-  for = "/sw.js"
+  for = "/sw.min.js"
   [headers.values]
     Cache-Control = "no-cache"
 

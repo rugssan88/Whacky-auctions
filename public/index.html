@@ -27,7 +27,7 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/icons/icon-192.png" />
   <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/styles.min.css" />
   <title>Whacky Auctions | Online Auctions South Africa</title>
   <script type="application/ld+json">
   {
@@ -56,8 +56,11 @@
   </script>
 </head>
 <body>
-  <div id="app"></div>
+  <div id="app">
+    <header class="topbar"><div class="container nav"><a class="brand" href="/"><span class="brandmark">W</span><span>Whacky Auctions</span></a><nav class="navlinks" aria-label="Primary navigation"><a href="/auctions">Auctions</a><a href="/how-it-works">How it works</a><a href="/about">About</a><a href="/contact">Contact</a><a href="/join">Join early access</a></nav></div></header>
+    <main><section class="hero professional-hero"><div class="container hero-grid"><div><span class="eyebrow">South African online auctions</span><h1>Good finds. Fair bidding. No nonsense.</h1><p>Whacky Auctions is a proudly South African online auction room for useful goods, unusual finds and second-hand treasures. Every listing uses real item photographs, straightforward condition notes and clear opening bids, so buyers can see what they are bidding on before they commit.</p><p>Our fair two-minute soft close gives bidders time to respond to late bids instead of rewarding last-second sniping. Browse the <a href="/auctions">latest auction previews</a>, learn <a href="/how-it-works">how bidding works</a>, or <a href="/join">join early access</a> for launch updates.</p><p>Before a lot opens, bidders can review its condition, description, payment deadline, buyer costs and collection arrangements. Working, untested, worn or incomplete goods are described plainly. Auction-specific information remains available alongside the platform rules so that important details are not hidden behind sales talk.</p><p>Whacky Auctions is based in Florida, Gauteng and supports South African buyers in rand. Early-access registration lets visitors receive updates and view previews without committing to bidder activation. People who later choose to bid complete the separate verification process through their account.</p><p>Winning is only lekker when the process is fair. That is why late valid bids extend the closing window, secure payment instructions are clearly displayed, and buyers can contact the team before bidding when a condition note or collection detail needs clarification.</p></div></div></section></main>
+  </div>
   <div id="toast" class="toast" aria-live="polite"></div>
-  <script type="module" src="/app.js"></script>
+  <script type="module" src="/app.min.js"></script>
 </body>
 </html>
