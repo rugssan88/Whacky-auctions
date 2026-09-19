@@ -132,8 +132,7 @@ async function bootstrap() {
   render();
 }
 function route() {
-  const path = location.pathname.replace(/^\/|\/$/g, "") || "home";
-  return path === "join" ? "home" : path;
+  return location.pathname.replace(/^\/|\/$/g, "") || "home";
 }
 function go(path) {
   closeModal();
@@ -157,6 +156,31 @@ function applySeo(r) {
       title: "Whacky Auctions | Online Auctions South Africa",
       description: "Browse honest online auctions in South Africa with real item photos, clear condition notes, sensible opening bids and a fair two-minute soft close.",
       path: "/",
+    },
+    auctions: {
+      title: "Auctions | Whacky Auctions South Africa",
+      description: "Browse live, upcoming and completed Whacky Auctions lots with real photos and clear condition notes.",
+      path: "/auctions",
+    },
+    "how-it-works": {
+      title: "How It Works | Whacky Auctions",
+      description: "Understand bidder verification, fair soft-close bidding, secure payment and collection at Whacky Auctions.",
+      path: "/how-it-works",
+    },
+    about: {
+      title: "About Whacky Auctions | Florida, Gauteng",
+      description: "Meet Whacky Auctions, a proudly South African online auction platform built around honest descriptions and fair bidding.",
+      path: "/about",
+    },
+    contact: {
+      title: "Contact Whacky Auctions",
+      description: "Contact Whacky Auctions for help with items, accounts, payments, collections, POPIA or PAIA enquiries.",
+      path: "/contact",
+    },
+    account: {
+      title: "My Account | Whacky Auctions",
+      description: "Manage your Whacky Auctions bids, watchlist, wins, profile and bidder status.",
+      path: "/account",
     },
     join: {
       title: "Join Whacky Auctions Early Access",
@@ -256,11 +280,11 @@ function card(a) {
 }
 function header() {
   return `<header class="topbar"><div class="container nav"><a class="brand" href="/" data-link><span class="brandmark">W</span><span>Whacky Auctions</span></a>
-<nav class="navlinks"><a href="/" data-link>Auctions</a>${state.me ? `<a href="/my-bids" data-link>My bids</a><a href="/watchlist" data-link>Watchlist</a><a href="/wins" data-link>Wins</a>` : ""}<a href="/legal" data-link>How it works</a>${state.me?.role === "admin" ? '<a href="/admin" data-link>Admin</a>' : ""}${state.me ? `<button id="accountBtn">${esc(state.me.firstName)}</button>` : '<a class="nav-join" href="/join" data-link>Join early access</a><button id="loginBtn">Sign in</button>'}</nav>
-<button class="btn btn-secondary mobile-menu" id="mobileBtn">Menu</button></div></header>`;
+<nav class="navlinks"><a href="/" data-link>Home</a><a href="/auctions" data-link>Auctions</a><a href="/how-it-works" data-link>How it works</a><a href="/about" data-link>About</a><a href="/contact" data-link>Contact</a>${state.me?.role === "admin" ? '<a href="/admin" data-link>Admin</a>' : ""}${state.me ? `<a class="nav-account" href="/account" data-link>${esc(state.me.firstName)}’s account</a>` : '<a class="nav-join" href="/join" data-link>Join early access</a><button id="loginBtn">Sign in</button>'}</nav>
+<button class="btn btn-secondary mobile-menu" id="mobileBtn" aria-label="Open navigation">Menu</button></div></header>`;
 }
 function footer() {
-  return `<footer class="footer"><div class="container footer-grid"><div><div class="brand"><span class="brandmark">W</span><span>Whacky Auctions</span></div><p class="muted small">A proudly South African auction room. Lekker goods, honest notes and no funny business.</p><p class="small">Whacky Auctions PTY LTD · South Africa</p></div><div><b>Come have a look</b><a href="/" data-link>All auctions</a><a href="/join" data-link>Join early access</a><a href="/install" data-link>Install the app</a><a href="mailto:info@whackyauctions.co.za">Contact us</a></div><div><b>Trust & legal</b><a href="/legal" data-link>Legal centre</a><a href="/legal/privacy-policy.pdf" target="_blank">Privacy Policy</a><a href="/legal/terms-auction-rules.pdf" target="_blank">Terms & Auction Rules</a><a href="https://pay.yoco.com/whacky-auctions" target="_blank" rel="noopener">Secure payments by Yoco ↗</a></div></div></footer>`;
+  return `<footer class="footer"><div class="container footer-grid"><div><div class="brand"><span class="brandmark">W</span><span>Whacky Auctions</span></div><p class="muted small">A proudly South African auction room. Lekker goods, honest notes and no funny business.</p><p class="small">Whacky Auctions PTY LTD · Florida, Gauteng</p></div><div><b>Explore</b><a href="/" data-link>Home</a><a href="/auctions" data-link>Auctions</a><a href="/how-it-works" data-link>How it works</a><a href="/about" data-link>About us</a></div><div><b>Help & account</b><a href="/contact" data-link>Contact us</a><a href="/join" data-link>Early access</a><a href="/account" data-link>My account</a><a href="/install" data-link>Install the app</a></div><div><b>Trust & legal</b><a href="/legal" data-link>Legal centre</a><a href="/legal/privacy-policy.pdf" target="_blank">Privacy Policy</a><a href="/legal/terms-auction-rules.pdf" target="_blank">Terms & Auction Rules</a><a href="https://pay.yoco.com/whacky-auctions" target="_blank" rel="noopener">Secure payments by Yoco ↗</a></div></div><div class="container footer-bottom"><span>© ${new Date().getFullYear()} Whacky Auctions</span><a href="mailto:info@whackyauctions.co.za">info@whackyauctions.co.za</a></div></footer>`;
 }
 async function loadAuctions() {
   const d = await api("auctions");
@@ -269,25 +293,43 @@ async function loadAuctions() {
   return d.auctions;
 }
 async function home() {
-  if (location.pathname.replace(/\/$/, "") === "/join") return joinPage();
   let auctions = [];
-  try {
-    auctions = await loadAuctions();
-  } catch (e) {
-    toast(e.message, true);
-  }
-  const live = auctions.filter((a) => a.status === "live"),
-    up = auctions.filter((a) => a.status === "scheduled"),
-    ended = auctions.filter((a) => ["closed", "unsold"].includes(a.status));
+  try { auctions = await loadAuctions(); } catch {}
+  const featured = auctions.filter((a) => ["live", "scheduled"].includes(a.status)).slice(0, 3);
   return `${header()}<main>
-<section class="hero"><div class="container hero-grid"><div><span class="eyebrow">🇿🇦 The online auction room made for Mzansi</span><h1>Come in.<br><span class="grad">You might score lekker.</span></h1><p>Useful things, unusual things and the occasional “where on earth did that come from?” — all with real photos, straight-up condition notes and fair bidding.</p><div class="hero-actions"><a class="btn btn-primary" href="#early-access">Join early access</a><a class="btn btn-secondary" href="#previews">Kom kyk — see the goods</a></div><div class="hero-proof"><span>✓ Free early access</span><span>✓ Honest condition notes</span><span>✓ Secure Yoco payments</span></div></div><aside class="launch-card"><div class="fair-icon">⏱</div><div><div class="label">Fair is fair, mos</div><h3>No last-second nonsense</h3><div class="mini">A valid bid in the final two minutes restores the full window. Everyone gets time to answer before the hammer drops.</div></div><div class="softclose"><b>No sneaky sniping, china.</b><div class="mini">A proper chance for every bidder.</div></div></aside></div></section>
-<section class="how-strip" aria-label="How Whacky Auctions works"><div class="container steps"><div><span>1</span><b>Have a squiz</b><small>Real photos and honest notes.</small></div><div><span>2</span><b>Bid without panic</b><small>Fair two-minute soft close.</small></div><div><span>3</span><b>Win it, collect it</b><small>Clear payment and collection details.</small></div></div></section>
-<section class="how-strip"><div class="container steps"><div><span>1</span><b>Join early</b><small>Get launch alerts first</small></div><div><span>2</span><b>Browse honestly</b><small>Photos and condition notes</small></div><div><span>3</span><b>Bid fairly</b><small>Soft close protects your chance</small></div></div></section>
-<section id="early-access" class="section"><div class="container join-grid"><div class="join-copy"><span class="eyebrow">Founding bidder early access</span><h2>Get in before the hammer drops.</h2><p>Join the launch list for first looks and launch alerts. It takes less than a minute.</p><div class="notice good"><b>Founding-member reward</b><br>The first 100 Early Access signups receive bidder activation free instead of paying R10.</div></div><div class="panel join-panel"><div class="label">Reserve your spot</div><h2>Join early access</h2>${earlyAccessForm()}</div></section>
-<section id="previews" class="section preview-section"><div class="container"><div class="section-head"><div><div class="label">What’s on the stoep</div><h2>Have a look around.</h2></div><div class="muted">5 preview items</div></div><p class="preview-intro">Real Whacky stock, photographed as it stands. These are previews only; the full description, condition notes and auction terms will be waiting when each lot goes live.</p><div class="grid preview-grid">${PREVIEW_ITEMS.map(previewCard).join("")}</div></div></section>
-<section id="auctions" class="section"><div class="container"><div class="section-head"><div><div class="label">Marketplace</div><h2>${live.length ? "Live auctions" : up.length ? "Upcoming auctions" : "Auctions"}</h2></div><div class="muted">${auctions.length} lot${auctions.length === 1 ? "" : "s"}</div></div>${auctions.length ? `<div class="grid">${[...live, ...up, ...ended].map(card).join("")}</div>` : `<div class="empty"><h3>Stock is being prepared.</h3><p>Auctions created in the admin dashboard will appear here when published.</p></div>`}</div></section></main>${footer()}`;
+<section class="hero professional-hero"><div class="container hero-grid"><div><span class="eyebrow">🇿🇦 Online auctions, made properly for Mzansi</span><h1>Good finds.<br><span class="grad">Fair bidding. No nonsense.</span></h1><p>Browse useful, unusual and properly described goods with real photos, transparent condition notes and a fair two-minute soft close.</p><div class="hero-actions"><a class="btn btn-primary" href="/auctions" data-link>Browse auctions</a><a class="btn btn-secondary" href="/how-it-works" data-link>See how it works</a></div><div class="hero-proof"><span>✓ Honest condition notes</span><span>✓ Secure Yoco payments</span><span>✓ South African support</span></div></div><aside class="launch-card"><div class="fair-icon">🔨</div><div><div class="label">Whacky, not dodgy</div><h3>Auction excitement without the funny business.</h3><div class="mini">Clear rules, sensible opening bids and enough time to answer a late bid before the hammer drops.</div></div><a class="softclose home-card-link" href="/join" data-link><b>Join early access</b><div class="mini">Get launch alerts and first looks.</div></a></aside></div></section>
+<section class="how-strip" aria-label="Whacky Auctions promises"><div class="container steps"><div><span>01</span><b>Real photos</b><small>See the actual item you are bidding on.</small></div><div><span>02</span><b>Straight-up notes</b><small>Condition disclosed without sales talk.</small></div><div><span>03</span><b>Fair soft close</b><small>No last-second sniping nonsense.</small></div></div></section>
+<section class="section"><div class="container"><div class="section-head"><div><div class="label">Featured</div><h2>${featured.length ? "Auctions worth a look" : "A taste of what’s coming"}</h2></div><a class="text-link" href="/auctions" data-link>View all auctions →</a></div>${featured.length ? `<div class="grid">${featured.map(card).join("")}</div>` : `<div class="grid preview-grid home-preview-grid">${PREVIEW_ITEMS.slice(0, 3).map(previewCard).join("")}</div>`}</div></section>
+<section class="section home-trust"><div class="container trust-grid"><div><div class="label">Built for trust</div><h2>Know the rules before you bid.</h2><p>We separate the exciting part from the important part. Payments, collection, condition and soft-close rules are easy to find before you commit.</p><a class="btn btn-secondary" href="/legal" data-link>Open legal centre</a></div><div class="panel trust-list"><div><b>Clear costs</b><span>Opening bids, increments and buyer premiums are shown upfront.</span></div><div><b>Protected bidding time</b><span>Late bids restore the full closing window.</span></div><div><b>Real support</b><span>Email the Whacky Auctions team directly when you need help.</span></div></div></div></section>
+<section class="section final-cta"><div class="container cta-panel"><div><div class="label">Ready when you are</div><h2>Come have a look around.</h2><p>Browse the goods now or join early access for launch news.</p></div><div class="hero-actions"><a class="btn btn-primary" href="/auctions" data-link>See auctions</a><a class="btn btn-secondary" href="/join" data-link>Join early access</a></div></div></section></main>${footer()}`;
 }
 
+async function auctionsPage() {
+  let auctions = [];
+  try { auctions = await loadAuctions(); } catch (e) { toast(e.message, true); }
+  const live = auctions.filter((a) => a.status === "live");
+  const upcoming = auctions.filter((a) => a.status === "scheduled");
+  const ended = auctions.filter((a) => ["closed", "unsold"].includes(a.status));
+  const active = [...live, ...upcoming];
+  return `${header()}<main><section class="page-hero"><div class="container"><span class="eyebrow">Marketplace</span><h1>Auctions</h1><p>Real items, real photos and clear condition notes. Have a squiz before you bid.</p></div></section><section class="section"><div class="container"><div class="auction-summary"><span><b>${live.length}</b> live</span><span><b>${upcoming.length}</b> upcoming</span><span><b>${ended.length}</b> completed</span></div>${active.length ? `<div class="section-head"><div><div class="label">Open for attention</div><h2>${live.length ? "Live and upcoming lots" : "Upcoming lots"}</h2></div></div><div class="grid">${active.map(card).join("")}</div>` : `<div class="empty"><h2>The auction room is being prepared.</h2><p>Join early access for the launch alert, or browse the preview stock below.</p><a class="btn btn-primary" href="/join" data-link>Join early access</a></div>`}</div></section><section class="section preview-section"><div class="container"><div class="section-head"><div><div class="label">Preview stock</div><h2>What’s on the stoep</h2></div><span class="muted">${PREVIEW_ITEMS.length} preview items</span></div><p class="preview-intro">Previews are not open for bidding. Full descriptions and auction-specific terms will appear when each lot is published.</p><div class="grid preview-grid">${PREVIEW_ITEMS.map(previewCard).join("")}</div></div></section>${ended.length ? `<section class="section"><div class="container"><div class="section-head"><div><div class="label">Archive</div><h2>Completed auctions</h2></div></div><div class="grid">${ended.map(card).join("")}</div></div></section>` : ""}</main>${footer()}`;
+}
+
+function howItWorks() {
+  return `${header()}<main><section class="page-hero"><div class="container"><span class="eyebrow">Simple, transparent bidding</span><h1>How Whacky Auctions works</h1><p>From first look to collection, every step is designed to be clear and fair.</p></div></section><section class="section"><div class="container process-grid"><article class="process-card"><span>01</span><h3>Browse properly</h3><p>Check the real photos, description, condition notes, opening bid and collection details.</p></article><article class="process-card"><span>02</span><h3>Activate bidding</h3><p>Create an Early Access account, then complete the separate bidder-verification step only if you want to bid.</p></article><article class="process-card"><span>03</span><h3>Bid fairly</h3><p>Place a binding bid. A valid bid in the final two minutes restores the full closing window.</p></article><article class="process-card"><span>04</span><h3>Pay securely</h3><p>Winning bidders follow the displayed payment instructions through secure Yoco processing.</p></article><article class="process-card"><span>05</span><h3>Collect your win</h3><p>Collection and delivery arrangements are shown on each lot before bidding closes.</p></article><article class="process-card"><span>06</span><h3>Ask when unsure</h3><p>Contact us before bidding if a condition note, rule or collection detail needs clarification.</p></article></div></section><section class="section"><div class="container detail-grid"><div class="panel"><div class="label">The soft close</div><h2>No sneaky sniping</h2><p>If a valid bid arrives during the final two minutes, the timer returns to two minutes. This repeats until no further valid bid is received during the renewed window.</p></div><div class="panel"><div class="label">Before you commit</div><h2>Read the lot and its rules</h2><p>A bid is binding. Review the item’s condition, buyer premium, payment deadline and collection requirements before placing it.</p><a class="text-link" href="/legal" data-link>Read the legal centre →</a></div></div></section><section class="section final-cta"><div class="container cta-panel"><div><h2>Ready to have a squiz?</h2><p>See what is live, upcoming and waiting in preview.</p></div><a class="btn btn-primary" href="/auctions" data-link>Browse auctions</a></div></section></main>${footer()}`;
+}
+
+function aboutPage() {
+  return `${header()}<main><section class="page-hero"><div class="container"><span class="eyebrow">Proudly South African</span><h1>About Whacky Auctions</h1><p>A more human online auction room for useful finds, unusual treasures and the occasional “what even is that?”</p></div></section><section class="section"><div class="container story-grid"><div><div class="label">Why we exist</div><h2>Second-hand goods deserve a better auction experience.</h2><p>Whacky Auctions was built to make online auctions feel exciting without becoming confusing or dodgy. We use real item photographs, honest condition notes and clear rules so bidders know what they are looking at before committing.</p><p>We are based in Florida, Gauteng and built for South African buyers.</p></div><aside class="panel values-panel"><h3>What matters here</h3><div><b>Honesty over hype</b><span>We describe items as they stand.</span></div><div><b>Fairness over tricks</b><span>Our soft close gives bidders time to respond.</span></div><div><b>Personality without chaos</b><span>Whacky can still be professional.</span></div></aside></div></section><section class="section"><div class="container"><div class="section-head"><div><div class="label">Our standard</div><h2>What bidders can expect</h2></div></div><div class="process-grid compact"><article class="process-card"><span>✓</span><h3>Actual item photos</h3><p>No generic stock images pretending to be the goods.</p></article><article class="process-card"><span>✓</span><h3>Condition disclosed</h3><p>Working, untested, worn or incomplete is stated plainly.</p></article><article class="process-card"><span>✓</span><h3>Rules within reach</h3><p>Legal terms and lot-specific details stay easy to find.</p></article></div></div></section></main>${footer()}`;
+}
+
+function contactPage() {
+  return `${header()}<main><section class="page-hero"><div class="container"><span class="eyebrow">We’re real people</span><h1>Contact us</h1><p>Questions about an item, payment, collection or your account? Drop us a line.</p></div></section><section class="section"><div class="container contact-grid"><a class="contact-card" href="mailto:info@whackyauctions.co.za"><span class="contact-icon">✉</span><div><div class="label">Email</div><h2>info@whackyauctions.co.za</h2><p>Best for account, auction, payment and collection queries.</p><b>Write to us →</b></div></a><div class="panel contact-note"><div class="label">What to include</div><h3>Help us help you quickly</h3><ul><li>Your name and account email</li><li>The auction or item title</li><li>A short explanation of what you need</li></ul><p class="muted small">Never email card details, passwords or one-time security codes.</p></div></div></section><section class="section"><div class="container detail-grid"><div class="panel"><h3>Collection area</h3><p>Florida, Gauteng. Exact arrangements are confirmed for each completed sale.</p></div><div class="panel"><h3>Legal or privacy request?</h3><p>Use the same email address and clearly mark the subject as a privacy, POPIA or PAIA enquiry.</p><a class="text-link" href="/legal" data-link>Open legal centre →</a></div></div></section></main>${footer()}`;
+}
+
+function accountPage() {
+  if (!state.me) return `${header()}<main><section class="page-hero"><div class="container"><span class="eyebrow">Your Whacky space</span><h1>My account</h1><p>Sign in to manage bidding, watched items, wins and bidder verification.</p></div></section><section class="section"><div class="container"><div class="panel account-gate"><h2>Sign in to continue</h2><p>Your Early Access account and verified-bidder status remain separate.</p><button class="btn btn-primary" id="loginHere">Sign in</button><a class="btn btn-secondary" href="/join" data-link>Join early access</a></div></div></section></main>${footer()}`;
+  return `${header()}<main><section class="page-hero compact-hero"><div class="container"><span class="eyebrow">Welcome back</span><h1>${esc(state.me.firstName)}’s account</h1><p>${state.me.verified ? "Verified bidder · ready when bidding opens." : "Early Access member · bidder verification is optional."}</p></div></section><section class="section"><div class="container account-hub"><a class="hub-card" href="/my-bids" data-link><span>🔨</span><h3>My bids</h3><p>See the lots you have bid on.</p></a><a class="hub-card" href="/watchlist" data-link><span>★</span><h3>Watchlist</h3><p>Keep an eye on interesting lots.</p></a><a class="hub-card" href="/wins" data-link><span>🏆</span><h3>Wins</h3><p>Review your successful auctions.</p></a><a class="hub-card" href="/profile" data-link><span>👤</span><h3>Profile & bidder status</h3><p>Manage your details and verification.</p></a></div></section></main>${footer()}`;
+}
 async function joinPage() {
   let count = 0;
   try {
@@ -751,7 +793,7 @@ function showMobileMenu() {
   closeMobileMenu();
   document.body.insertAdjacentHTML(
     "beforeend",
-    `<div class="mobile-nav-backdrop" id="mobileNav"><nav class="mobile-nav-panel" aria-label="Mobile navigation"><div class="mobile-nav-head"><b>Menu</b><button class="x" id="mobileNavX" aria-label="Close menu">×</button></div><a data-link href="/">Auctions</a>${state.me ? '<a data-link href="/my-bids">My bids</a><a data-link href="/watchlist">Watchlist</a><a data-link href="/wins">Wins</a><a data-link href="/profile">Account</a>' : '<a data-link href="/join">Join early access</a><button id="mobileLogin">Sign in</button>'}${state.me?.role === "admin" ? '<a data-link href="/admin">Admin</a>' : ""}<a data-link href="/legal">How it works</a><a data-link href="/install">Install the app</a></nav></div>`,
+    `<div class="mobile-nav-backdrop" id="mobileNav"><nav class="mobile-nav-panel" aria-label="Mobile navigation"><div class="mobile-nav-head"><b>Menu</b><button class="x" id="mobileNavX" aria-label="Close menu">×</button></div><a data-link href="/">Home</a><a data-link href="/auctions">Auctions</a><a data-link href="/how-it-works">How it works</a><a data-link href="/about">About</a><a data-link href="/contact">Contact</a>${state.me ? '<a data-link href="/account">My account</a>' : '<a data-link href="/join">Join early access</a><button id="mobileLogin">Sign in</button>'}${state.me?.role === "admin" ? '<a data-link href="/admin">Admin</a>' : ""}<a data-link href="/legal">Legal centre</a><a data-link href="/install">Install the app</a></nav></div>`,
   );
   $("#mobileNavX").onclick = closeMobileMenu;
   $("#mobileNav").onclick = (e) => {
@@ -765,7 +807,7 @@ function showMobileMenu() {
   };
 }
 function showLogin() {
-  modal(`<h2>Sign in to your Early Access account</h2>${loginForm()}<p class="muted small">No account yet? Use the Early Access signup form on the home page.</p>`);
+  modal(`<h2>Sign in to your Early Access account</h2>${loginForm()}<p class="muted small">No account yet? Join on the dedicated Early Access page.</p>`);
   bindAuth();
 }
 function loginForm() {
@@ -1362,6 +1404,12 @@ async function render() {
   let html;
   try {
     if (r === "home") html = await home();
+    else if (r === "auctions") html = await auctionsPage();
+    else if (r === "how-it-works") html = howItWorks();
+    else if (r === "about") html = aboutPage();
+    else if (r === "contact") html = contactPage();
+    else if (r === "join") html = await joinPage();
+    else if (r === "account") html = accountPage();
     else if (r.startsWith("auction/"))
       html = await auctionPage(r.split("/")[1]);
     else if (r === "my-bids") html = await accountList("bids");
