@@ -28,6 +28,7 @@ import {
   randomToken,
 } from "./lib/core.mts";
 import { createCheckout } from "./lib/payment-gateway.mts";
+import { bidderVerifiedEmail, safeSend, sendTransactionalEmail, signupEmail, smtpTestEmail } from "./lib/email.mts";
 
 const clean = (s: any, max = 5000) =>
   String(s ?? "")
@@ -307,6 +308,12 @@ async function handle(req: Request) {
     const rankRows = await db.sql`SELECT COUNT(*)::int AS rank FROM early_access_signups WHERE created_at <= (SELECT created_at FROM early_access_signups WHERE id=${signupId})`;
     const signupRank = Number(rankRows[0]?.rank || 0);
     await audit(null, "early_access_signup", "early_access", signupId, { signupRank, freeActivationEligible: signupRank <= 100 }, req);
+    await safeSend({
+      to: email,
+      template: "early_access_welcome",
+      eventKey: signupId,
+      message: signupEmail({ firstName, signupRank, freeActivationEligible: signupRank <= 100 }),
+    });
     return ok({
       message: signupRank <= 100 ? "Your spot is saved — you qualify for free bidder activation." : "Your Early Access spot is saved.",
       accountToken,
@@ -413,6 +420,12 @@ async function handle(req: Request) {
       await db.sql`UPDATE users SET verified=TRUE WHERE id=${u.id} AND suspended=FALSE`;
       await db.sql`INSERT INTO notifications(id,user_id,type,message) VALUES(${id()},${u.id},'bidder_verified','Your free founding-member bidder activation is complete. You may bid when auctions open.')`;
       await audit(u.id,"bidder_verification_waived","verification",u.id,{signupRank,amountCents:0},req);
+      await safeSend({
+        to: u.email,
+        template: "bidder_verified",
+        eventKey: `free:${u.id}`,
+        message: bidderVerifiedEmail({ firstName: u.first_name, freeActivation: true }),
+      });
       return ok({ verified: true, freeActivation: true, amountCents: 0, message: "Your free bidder activation is complete." });
     }
     const settings = await getSettings();
@@ -798,6 +811,13 @@ async function handle(req: Request) {
             await db.sql`UPDATE users SET verified=TRUE WHERE id=${verification.user_id} AND suspended=FALSE`;
             await db.sql`INSERT INTO notifications(id,user_id,type,message) VALUES(${id()},${verification.user_id},'bidder_verified','Your R10 bidder verification is complete. You may bid when auctions open.')`;
             await audit(verification.user_id,"bidder_verification_paid","verification",verification.id,{provider:"yoco",eventId:event.id,checkoutId,amountCents},req);
+            const verifiedUser = (await db.sql`SELECT email,first_name FROM users WHERE id=${verification.user_id} LIMIT 1`)[0];
+            if (verifiedUser) await safeSend({
+              to: verifiedUser.email,
+              template: "bidder_verified",
+              eventKey: `paid:${verification.id}`,
+              message: bidderVerifiedEmail({ firstName: verifiedUser.first_name, freeActivation: false }),
+            });
           }
         }
       }
@@ -913,6 +933,16 @@ async function handle(req: Request) {
   // ADMIN
   if (parts[0] === "admin") {
     const admin = await requireAdmin(req);
+    if (method === "POST" && parts[1] === "smtp-test") {
+      const result = await sendTransactionalEmail({
+        to: "info@whackyauctions.co.za",
+        template: "early_access_welcome",
+        eventKey: `smtp-test:${Date.now()}`,
+        message: smtpTestEmail(),
+      });
+      await audit(admin.id,"smtp_test_sent","email","info@whackyauctions.co.za",{},req);
+      return ok({ result, recipient: "info@whackyauctions.co.za" });
+    }
     if (method === "GET" && parts[1] === "dashboard") {
       await closeExpiredAuctions();
       const [
@@ -971,6 +1001,57 @@ async function handle(req: Request) {
         await db.sql`SELECT id,email,first_name,last_name,mobile,id_number,role,verified,suspended,created_at,last_login_at FROM users ORDER BY created_at DESC`;
       return ok({ users: rows });
     }
+    if (method === "GET" && parts[1] === "founder-email-preview") {
+      const rows = await db.sql`SELECT e.id signup_id,e.first_name,e.last_name,e.email,e.created_at,e.claimed_user_id,
+        u.id user_id,u.id_number,u.verified,u.suspended,
+        ROW_NUMBER() OVER (ORDER BY e.created_at,e.id)::int signup_rank
+        FROM early_access_signups e
+        LEFT JOIN users u ON u.id=e.claimed_user_id
+        ORDER BY e.created_at,e.id
+        LIMIT 100`;
+      return ok({
+        recipients: rows.map((row: any) => ({
+          signupId: row.signup_id,
+          firstName: row.first_name,
+          lastName: row.last_name,
+          email: row.email,
+          signupRank: Number(row.signup_rank),
+          hasAccount: !!row.user_id,
+          hasIdNumber: !!row.id_number,
+          verified: !!row.verified,
+          suspended: !!row.suspended,
+          emailsPlanned: ["early_access_welcome", ...(row.verified ? ["bidder_verified"] : [])],
+        })),
+      });
+    }
+    if (method === "POST" && parts[1] === "founder-email-send") {
+      const rows = await db.sql`SELECT e.id signup_id,e.first_name,e.last_name,e.email,e.created_at,
+        u.id user_id,u.verified,u.suspended,
+        ROW_NUMBER() OVER (ORDER BY e.created_at,e.id)::int signup_rank
+        FROM early_access_signups e
+        LEFT JOIN users u ON u.id=e.claimed_user_id
+        ORDER BY e.created_at,e.id
+        LIMIT 100`;
+      const results: any[] = [];
+      for (const row of rows as any[]) {
+        const signupResult = await safeSend({
+          to: row.email,
+          template: "early_access_welcome",
+          eventKey: row.signup_id,
+          message: signupEmail({ firstName: row.first_name, signupRank: Number(row.signup_rank), freeActivationEligible: true }),
+        });
+        let verificationResult = null;
+        if (row.verified && !row.suspended && row.user_id) verificationResult = await safeSend({
+          to: row.email,
+          template: "bidder_verified",
+          eventKey: `free:${row.user_id}`,
+          message: bidderVerifiedEmail({ firstName: row.first_name, freeActivation: true }),
+        });
+        results.push({ email: row.email, signupRank: Number(row.signup_rank), signupResult, verificationResult });
+      }
+      await audit(admin.id,"founder_emails_sent","email","first_100",{ recipientCount: rows.length },req);
+      return ok({ results });
+    }
     if (
       method === "POST" &&
       parts[1] === "users" &&
@@ -987,6 +1068,19 @@ async function handle(req: Request) {
         { verified: !!body.verified },
         req,
       );
+      if (body.verified) {
+        const verifiedUser = (await db.sql`SELECT email,first_name FROM users WHERE id=${parts[2]} AND role='bidder' LIMIT 1`)[0];
+        if (verifiedUser) {
+          const rankRows = await db.sql`SELECT COUNT(*)::int AS rank FROM early_access_signups WHERE created_at <= (SELECT created_at FROM early_access_signups WHERE email=${verifiedUser.email} LIMIT 1)`;
+          const signupRank = Number(rankRows[0]?.rank || 0);
+          await safeSend({
+            to: verifiedUser.email,
+            template: "bidder_verified",
+            eventKey: `${signupRank > 0 && signupRank <= 100 ? "free" : "admin"}:${parts[2]}`,
+            message: bidderVerifiedEmail({ firstName: verifiedUser.first_name, freeActivation: signupRank > 0 && signupRank <= 100 }),
+          });
+        }
+      }
       return ok();
     }
     if (

@@ -468,7 +468,7 @@ async function admin() {
   if (state.adminTab === "overview") body = adminOverview(dash);
   if (state.adminTab === "auctions") body = await adminAuctions();
   if (state.adminTab === "users") body = await adminUsers();
-  if (state.adminTab === "records") body = adminRecords();
+  if (state.adminTab === "records") body = await adminRecords();
   return `${header()}<main class="section"><div class="container"><div class="section-head"><div><div class="label">Operations</div><h2>Admin dashboard</h2></div></div><div class="admin-layout">${side}<section>${body}</section></div></div></main>${footer()}`;
 }
 function adminOverview(d) {
@@ -771,8 +771,16 @@ async function adminUsers() {
     )
     .join("")}</tbody></table></div></div>`;
 }
-function adminRecords() {
-  return `<div class="panel"><h3>Records & launch list</h3><p>Export the early-access list, bidder record and vendor roll for launch planning and compliance administration.</p><div class="toolbar"><a class="btn btn-secondary" href="/api/admin/records/early-access.csv">Download early-access CSV</a><a class="btn btn-secondary" href="/api/admin/records/bidders.csv">Download bidders CSV</a><a class="btn btn-secondary" href="/api/admin/records/vendor-roll.csv">Download vendor roll CSV</a></div><p class="muted small">Access to these exports is restricted to administrator sessions.</p></div>`;
+async function adminRecords() {
+  const d = await api("admin/founder-email-preview");
+  const recipients = d.recipients || [];
+  const recipientRows = recipients
+    .map(
+      (r) =>
+        `<tr><td><b>#${r.signupRank}</b></td><td>${esc(r.firstName)} ${esc(r.lastName)}</td><td>${esc(r.email)}</td><td>${r.hasAccount ? "Created" : "Not created"}</td><td>${r.hasIdNumber ? "Submitted" : "Not submitted"}</td><td>${r.suspended ? "Suspended" : r.verified ? "Verified" : "Pending"}</td><td>${r.emailsPlanned.map(esc).join(", ")}</td></tr>`,
+    )
+    .join("");
+  return `<div class="panel"><h3>Records & launch list</h3><p>Export the early-access list, bidder record and vendor roll for launch planning and compliance administration.</p><div class="toolbar"><a class="btn btn-secondary" href="/api/admin/records/early-access.csv">Download early-access CSV</a><a class="btn btn-secondary" href="/api/admin/records/bidders.csv">Download bidders CSV</a><a class="btn btn-secondary" href="/api/admin/records/vendor-roll.csv">Download vendor roll CSV</a></div><p class="muted small">Access to these exports is restricted to administrator sessions.</p></div><div class="panel" style="margin-top:16px"><h3>Founder email recipients</h3><p class="muted small">Preview the first 100 Early Access signups and their bidder verification status.</p><div class="toolbar" style="margin-bottom:12px"><button class="btn btn-secondary" id="smtpTestBtn">Send SMTP test to info@</button><button class="btn btn-primary" id="founderEmailsBtn">Send outstanding founder emails</button></div><div class="table-wrap"><table><thead><tr><th>Signup</th><th>Name</th><th>Email</th><th>Account</th><th>ID number</th><th>Verification</th><th>Emails planned</th></tr></thead><tbody>${recipientRows || '<tr><td colspan="7">No Early Access signups yet.</td></tr>'}</tbody></table></div><p class="muted small">Delivery is idempotent: emails already recorded as sent are not sent twice.</p></div>`;
 }
 function modal(html) {
   document.body.insertAdjacentHTML(
@@ -918,6 +926,31 @@ function installUI() {
 }
 async function bind() {
   bindEarlyAccess();
+  const smtpTestBtn = $("#smtpTestBtn");
+  if (smtpTestBtn)
+    smtpTestBtn.onclick = async () => {
+      smtpTestBtn.disabled = true;
+      try {
+        const d = await api("admin/smtp-test", { method: "POST" });
+        toast(d.message || "SMTP test sent.");
+      } catch (e) {
+        toast(e.message, true);
+        smtpTestBtn.disabled = false;
+      }
+    };
+  const founderEmailsBtn = $("#founderEmailsBtn");
+  if (founderEmailsBtn)
+    founderEmailsBtn.onclick = async () => {
+      founderEmailsBtn.disabled = true;
+      try {
+        const d = await api("admin/founder-email-send", { method: "POST" });
+        toast(d.message || "Outstanding founder emails processed.");
+        await render();
+      } catch (e) {
+        toast(e.message, true);
+        founderEmailsBtn.disabled = false;
+      }
+    };
   const registerYoco = $("#registerYocoWebhook");
   if (registerYoco)
     registerYoco.onclick = async () => {
