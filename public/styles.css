@@ -348,6 +348,9 @@ select {
   overflow: hidden;
   background: #211914;
 }
+.preview-images:has(> img:only-of-type) {
+  grid-template-columns: 1fr;
+}
 .preview-images img {
   width: 100%;
   height: 100%;
