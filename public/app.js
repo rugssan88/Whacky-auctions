@@ -40,11 +40,18 @@ const optimisedImage = (url, width, height = 0, fit = "cover") => {
 };
 const PREVIEW_ITEMS = [
   {
-    title: "Dictionary & language reference book bundle",
+    title: "Afrikaans dictionary & study book bundle",
     category: "Books & education",
-    condition: "Eight English and Afrikaans dictionaries, thesaurus and language-study books. Well used, with visible cover, edge and page wear; editions and contents as pictured.",
+    condition: "Four Afrikaans-English dictionaries and study/reference books. Well used, with visible cover, edge and page wear; titles and editions as pictured.",
     openingBidCents: 10000,
-    images: ["/previews/language-books-1.webp", "/previews/language-books-2.webp"],
+    images: ["/previews/language-books-1.webp"],
+  },
+  {
+    title: "English dictionary & language book bundle",
+    category: "Books & education",
+    condition: "Four English dictionary, thesaurus, phrase and language-learning books. Well used, with visible cover, edge and page wear; titles and editions as pictured.",
+    openingBidCents: 10000,
+    images: ["/previews/language-books-2.webp"],
   },
   {
     title: "Mantec over-ear headphones",
@@ -58,7 +65,7 @@ const PREVIEW_ITEMS = [
     category: "Home & outdoor",
     condition: "Two heavy-duty rubber traffic-calming pads with white reflectors and mounting holes. Used with dirt, surface wear and visible cracking; sold as pictured.",
     openingBidCents: 5000,
-    images: ["/previews/rand-rubber-speed-bumps-1.webp"],
+    images: ["/previews/rand-rubber-speed-bumps-1.webp", "/previews/rand-rubber-speed-bumps-2.webp"],
   },
   {
     title: "Telefunken chest freezer",
