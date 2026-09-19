@@ -40,6 +40,41 @@ const optimisedImage = (url, width, height = 0, fit = "cover") => {
 };
 const PREVIEW_ITEMS = [
   {
+    title: "Dictionary & language reference book bundle",
+    category: "Books & education",
+    condition: "Eight English and Afrikaans dictionaries, thesaurus and language-study books. Well used, with visible cover, edge and page wear; editions and contents as pictured.",
+    openingBidCents: 10000,
+    images: ["/previews/language-books-1.webp", "/previews/language-books-2.webp"],
+  },
+  {
+    title: "Mantec over-ear headphones",
+    category: "Audio",
+    condition: "Over-ear headphones with onboard volume and power controls. Pre-owned with visible cosmetic wear; untested and sold as pictured.",
+    openingBidCents: 2000,
+    images: ["/previews/mantec-headphones-1.webp"],
+  },
+  {
+    title: "Pair of Rand Rubber speed bumps",
+    category: "Home & outdoor",
+    condition: "Two heavy-duty rubber traffic-calming pads with white reflectors and mounting holes. Used with dirt, surface wear and visible cracking; sold as pictured.",
+    openingBidCents: 5000,
+    images: ["/previews/rand-rubber-speed-bumps-1.webp"],
+  },
+  {
+    title: "Telefunken chest freezer",
+    category: "Appliances",
+    condition: "Top-opening Telefunken chest freezer with adjustable control and lockable latch. Older unit with scratches, stains and discolouration; untested.",
+    openingBidCents: 70000,
+    images: ["/previews/telefunken-freezer-1.webp", "/previews/telefunken-freezer-2.webp"],
+  },
+  {
+    title: "Bosch Aquasensor dishwasher",
+    category: "Appliances",
+    condition: "Freestanding Bosch Aquasensor dishwasher with hose and power cable. Shows substantial scratches, dirt and age-related wear; untested.",
+    openingBidCents: 70000,
+    images: ["/previews/bosch-dishwasher-1.webp", "/previews/bosch-dishwasher-2.webp"],
+  },
+  {
     title: "Printer & craft-printing bundle",
     category: "Creative equipment",
     condition: "A colourful setup for personalised gifts and crafts—printer, press, inks, blanks and designs included as pictured. Untested.",
