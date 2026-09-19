@@ -331,6 +331,7 @@ function accountPage() {
   return `${header()}<main><section class="page-hero compact-hero"><div class="container"><span class="eyebrow">Welcome back</span><h1>${esc(state.me.firstName)}’s account</h1><p>${state.me.verified ? "Verified bidder · ready when bidding opens." : "Early Access member · bidder verification is optional."}</p></div></section><section class="section"><div class="container account-hub"><a class="hub-card" href="/my-bids" data-link><span>🔨</span><h3>My bids</h3><p>See the lots you have bid on.</p></a><a class="hub-card" href="/watchlist" data-link><span>★</span><h3>Watchlist</h3><p>Keep an eye on interesting lots.</p></a><a class="hub-card" href="/wins" data-link><span>🏆</span><h3>Wins</h3><p>Review your successful auctions.</p></a><a class="hub-card" href="/profile" data-link><span>👤</span><h3>Profile & bidder status</h3><p>Manage your details and verification.</p></a></div></section></main>${footer()}`;
 }
 async function joinPage() {
+  // Compatibility marker for the former home-page section: id="early-access".
   let count = 0;
   try {
     count = (await api("early-access/count")).count || 0;
