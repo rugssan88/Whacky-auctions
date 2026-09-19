@@ -42,6 +42,13 @@ export function bidderVerifiedEmail(input: { firstName: string; freeActivation: 
   return { subject, text, html };
 }
 
+export function smtpTestEmail() {
+  const subject = "Whacky Auctions automated email test";
+  const text = `Good news — automated email from ${SUPPORT_EMAIL} is configured correctly.`;
+  const html = layout(subject, `<h1 style="font-size:28px;margin-top:0">Lekker—it works!</h1><p>Automated email from <strong>${SUPPORT_EMAIL}</strong> is configured correctly.</p><p>No customer received this test.</p>`);
+  return { subject, text, html };
+}
+
 function smtpConfig() {
   const host = (Netlify.env.get("SMTP_HOST") || "").trim();
   const port = Number(Netlify.env.get("SMTP_PORT") || 465);

@@ -28,7 +28,7 @@ import {
   randomToken,
 } from "./lib/core.mts";
 import { createCheckout } from "./lib/payment-gateway.mts";
-import { bidderVerifiedEmail, safeSend, signupEmail } from "./lib/email.mts";
+import { bidderVerifiedEmail, safeSend, sendTransactionalEmail, signupEmail, smtpTestEmail } from "./lib/email.mts";
 
 const clean = (s: any, max = 5000) =>
   String(s ?? "")
@@ -933,6 +933,16 @@ async function handle(req: Request) {
   // ADMIN
   if (parts[0] === "admin") {
     const admin = await requireAdmin(req);
+    if (method === "POST" && parts[1] === "smtp-test") {
+      const result = await sendTransactionalEmail({
+        to: "info@whackyauctions.co.za",
+        template: "early_access_welcome",
+        eventKey: `smtp-test:${Date.now()}`,
+        message: smtpTestEmail(),
+      });
+      await audit(admin.id,"smtp_test_sent","email","info@whackyauctions.co.za",{},req);
+      return ok({ result, recipient: "info@whackyauctions.co.za" });
+    }
     if (method === "GET" && parts[1] === "dashboard") {
       await closeExpiredAuctions();
       const [

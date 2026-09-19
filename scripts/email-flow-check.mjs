@@ -19,6 +19,7 @@ for (const required of [
   'first 100 signups',
   'tell your friends',
   'ON CONFLICT(template,event_key)',
+  'Whacky Auctions automated email test',
 ]) assert.ok(email.includes(required), `Missing transactional-email requirement: ${required}`);
 
 assert.ok(email.includes('const free = input.freeActivationEligible'), "Free-verification copy must remain conditional.");
