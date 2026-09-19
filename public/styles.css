@@ -1583,7 +1583,7 @@ hr{border-color:#d9c5ae!important}
 .cta-panel{display:flex;align-items:center;justify-content:space-between;gap:30px;padding:34px;border-radius:28px;background:var(--ink);color:#fff}
 .cta-panel h2{margin:4px 0 8px}
 .cta-panel p{margin:0;color:#d9dfdc}
-.cta-panel .btn-secondary{border-color:#fff;color:#fff}
+.cta-panel .btn-secondary{background:#fff;color:var(--ink);border-color:#fff;box-shadow:0 10px 24px rgba(0,0,0,.22);font-weight:900}
 .auction-summary{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:28px}
 .auction-summary span{padding:12px 16px;border:1px solid var(--line);border-radius:999px;background:#fff}
 .auction-summary b{font-size:20px;margin-right:5px}
