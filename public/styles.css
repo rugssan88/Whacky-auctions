@@ -1440,6 +1440,7 @@ body { background: radial-gradient(circle at 12% 0%, rgba(230,95,53,.15), transp
 .launch-card { max-width: 410px; padding: 28px; display: grid; gap: 16px; background: linear-gradient(150deg, #302017, #1b1512); }
 .launch-card h3 { font-size: 25px; margin: 5px 0 8px; }
 .fair-icon { width: 54px; height: 54px; display: grid; place-items: center; border-radius: 16px; font-size: 26px; background: rgba(245,202,90,.12); border: 1px solid rgba(245,202,90,.24); }
+.fair-icon img { width: 68px; height: 68px; object-fit: contain; filter: drop-shadow(0 6px 10px rgba(8, 25, 22, .25)); }
 .softclose { margin-top: 0; }
 .how-strip { border-block: 1px solid rgba(255,255,255,.07); background: rgba(255,255,255,.025); }
 .steps { display: grid; grid-template-columns: repeat(3,1fr); padding-block: 24px; }
