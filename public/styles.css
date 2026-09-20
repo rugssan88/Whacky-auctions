@@ -1627,6 +1627,11 @@ hr{border-color:#d9c5ae!important}
 .footer-grid{grid-template-columns:1.4fr repeat(3,1fr)}
 .footer-bottom{display:flex;justify-content:space-between;gap:20px;padding-top:24px;margin-top:28px;border-top:1px solid rgba(255,255,255,.14);font-size:13px}
 .footer-bottom a{color:inherit}
+.footer-socials{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.footer-socials a{display:grid;gap:2px;padding:9px 11px;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:rgba(255,255,255,.06);color:#fff8ee;text-decoration:none;line-height:1.2;transition:transform .18s ease,background .18s ease,border-color .18s ease}
+.footer-socials a:hover,.footer-socials a:focus-visible{transform:translateY(-2px);background:rgba(255,255,255,.11);border-color:rgba(245,207,114,.55)}
+.footer-socials span{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#f5cf72}
+.footer-socials b{font-size:12px;font-weight:700}
 @media(max-width:980px){
   .navlinks>a:not(.nav-join):not(.nav-account),.navlinks>button:not(#loginBtn){display:none}
   .home-preview-grid,.process-grid,.process-grid.compact{grid-template-columns:repeat(2,minmax(0,1fr))}
