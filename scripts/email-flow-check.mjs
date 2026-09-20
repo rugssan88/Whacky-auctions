@@ -22,6 +22,6 @@ for (const required of [
   'Whacky Auctions automated email test',
 ]) assert.ok(email.includes(required), `Missing transactional-email requirement: ${required}`);
 
-assert.ok(email.includes('const free = input.freeActivationEligible'), "Free-verification copy must remain conditional.");
+assert.ok(email.includes('const benefit = input.freeActivationEligible'), "Free-verification copy must remain conditional.");
 assert.ok(migration.includes('UNIQUE(template,event_key)'), "Email delivery must be idempotent.");
 console.log("Whacky Auctions transactional-email checks passed.");
