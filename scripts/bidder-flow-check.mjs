@@ -4,11 +4,14 @@ import assert from "node:assert/strict";
 const app = fs.readFileSync("public/app.js", "utf8");
 const api = fs.readFileSync("netlify/functions/api.mts", "utf8");
 const migration = fs.readFileSync("netlify/database/migrations/007_early_access_account_claims/migration.sql", "utf8");
+const promoMigration = fs.readFileSync("netlify/database/migrations/009_cloud9_promo/migration.sql", "utf8");
 
 for (const required of [
   'id="early-access"',
   'function earlyAccessForm()',
   'Join Early Access',
+  'name="promoCode"',
+  'CLOUD9 promo: R5 once off',
   'function bindEarlyAccessAccount(',
   'Sign in to your Early Access account',
   'href="/verify-bidder"',
@@ -45,14 +48,17 @@ for (const required of [
   'randomToken(24)',
   'hashPassword(password)',
   'createSession(uid)',
-  'signupRank <= 100',
+  'bidderActivationOffer',
+  'promoRank <= 20',
   'bidder_verification_waived',
-  'amountCents:1000',
+  'activationAmountCents',
   '/verify-bidder?verification=return',
 ]) assert.ok(api.includes(required), `API is missing bidder-flow requirement: ${required}`);
 
 assert.ok(!api.includes('parts[0] === "register"'), "The obsolete public registration API must remain removed.");
 assert.ok(migration.includes("account_token_hash"), "Account-claim token migration is missing.");
 assert.ok(migration.includes("claimed_user_id"), "Account claim must be linked to a user.");
+assert.ok(promoMigration.includes("promo_code"), "Promo-code tracking migration is missing.");
+assert.ok(promoMigration.includes("500, 1000"), "R5/R10 bidder activation amounts must both be allowed.");
 
 console.log("Whacky Auctions bidder-flow checks passed.");

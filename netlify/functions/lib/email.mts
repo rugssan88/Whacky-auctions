@@ -22,20 +22,28 @@ function layout(preheader: string, body: string) {
 
 const button = (label: string, href: string) => `<p style="margin:26px 0"><a href="${href}" style="display:inline-block;background:#bc3f2f;color:#fff;text-decoration:none;font-weight:800;padding:13px 20px;border-radius:12px">${esc(label)}</a></p>`;
 
-export function signupEmail(input: { firstName: string; freeActivationEligible: boolean; signupRank: number }) {
-  const free = input.freeActivationEligible
-    ? `<div style="margin:22px 0;padding:18px;border-radius:14px;background:#e1f1e8;border:1px solid #9ccbb3"><strong>Your free bidder activation is reserved.</strong><br>You are signup number ${input.signupRank} and fall within our first 100. Create your account and submit the separate bidder-verification form when you are ready to bid. The usual R10 activation fee will be waived.</div>`
+export function signupEmail(input: { firstName: string; freeActivationEligible: boolean; signupRank: number; freeActivationReason?: string | null; promoCode?: string | null; activationAmountCents?: number }) {
+  const freeCopy = input.freeActivationReason === "cloud9"
+    ? "You are within the first 20 CLOUD9 promo signups, so your once-off bidder activation is free."
+    : `You are signup number ${input.signupRank} and fall within our first 100 signups, so your usual R10 activation fee is waived.`;
+  const promoCopy = !input.freeActivationEligible && input.promoCode === "CLOUD9" && Number(input.activationAmountCents) === 500
+    ? "Your CLOUD9 promo code is active. Your once-off bidder activation will be R5 instead of the standard R10."
     : "";
+  const benefit = input.freeActivationEligible
+    ? `<div style="margin:22px 0;padding:18px;border-radius:14px;background:#e1f1e8;border:1px solid #9ccbb3"><strong>Your free bidder activation is reserved.</strong><br>${esc(freeCopy)}</div>`
+    : promoCopy
+      ? `<div style="margin:22px 0;padding:18px;border-radius:14px;background:#e1f1e8;border:1px solid #9ccbb3"><strong>CLOUD9 promo applied.</strong><br>${esc(promoCopy)}</div>`
+      : "";
   const subject = "Welcome to the Whacky family";
-  const text = `Hi ${input.firstName},\n\nYou are officially on the Whacky Auctions Early Access list. ${input.freeActivationEligible ? `As signup number ${input.signupRank}, your free bidder activation is reserved. Complete the separate bidder-verification form when you are ready to bid.` : "We will keep you posted as launch day gets closer."}\n\nHave a look at the upcoming goods: ${SITE_URL}/auctions\n\nWhacky Auctions\n${SUPPORT_EMAIL}`;
-  const html = layout(subject, `<p style="margin-top:0">Hi ${esc(input.firstName)},</p><h1 style="font-size:30px;line-height:1.15;margin:8px 0 16px">You’re officially part of the Whacky family!</h1><p>Your Early Access spot is saved. We’ll keep you in the loop as launch day gets closer and new lots start arriving.</p>${free}<p>In the meantime, have a squiz at what’s coming—and if you know someone who loves a good find, send them our way. The more bidders in the room, the more lekker the auction.</p>${button("See what’s coming", `${SITE_URL}/auctions`)}<p>See you when the hammer drops,<br><strong>The Whacky Auctions team</strong></p>`);
+  const benefitText = input.freeActivationEligible ? `${freeCopy} Complete the separate bidder-verification form when you are ready to bid.` : promoCopy || "We will keep you posted as launch day gets closer.";
+  const text = `Hi ${input.firstName},\n\nYou are officially on the Whacky Auctions Early Access list. ${benefitText}\n\nHave a look at the upcoming goods: ${SITE_URL}/auctions\n\nWhacky Auctions\n${SUPPORT_EMAIL}`;
+  const html = layout(subject, `<p style="margin-top:0">Hi ${esc(input.firstName)},</p><h1 style="font-size:30px;line-height:1.15;margin:8px 0 16px">You’re officially part of the Whacky family!</h1><p>Your Early Access spot is saved. We’ll keep you in the loop as launch day gets closer and new lots start arriving.</p>${benefit}<p>In the meantime, have a squiz at what’s coming—and if you know someone who loves a good find, send them our way. The more bidders in the room, the more lekker the auction.</p>${button("See what’s coming", `${SITE_URL}/auctions`)}<p>See you when the hammer drops,<br><strong>The Whacky Auctions team</strong></p>`);
   return { subject, text, html };
 }
-
 export function bidderVerifiedEmail(input: { firstName: string; freeActivation: boolean }) {
   const subject = input.freeActivation ? "You’re verified—your free bidder activation is confirmed" : "You’re verified and ready to bid";
   const activation = input.freeActivation
-    ? "Your once-off bidder verification is completely free as one of our first 100 signups. There is nothing to pay."
+    ? "Your once-off bidder verification is completely free under your launch offer. There is nothing to pay."
     : "Your bidder verification is complete and your account is ready for bidding.";
   const text = `Hi ${input.firstName},\n\nCongratulations—your Whacky Auctions bidder status is verified. ${activation}\n\nWe are getting the auction room ready. Tell your friends and keep an eye on ${SITE_URL}/auctions.\n\nWelcome to the Whacky family!\nThe Whacky Auctions team\n${SUPPORT_EMAIL}`;
   const html = layout(subject, `<p style="margin-top:0">Hi ${esc(input.firstName)},</p><h1 style="font-size:30px;line-height:1.15;margin:8px 0 16px">Congratulations—you’re a verified bidder!</h1><div style="margin:22px 0;padding:18px;border-radius:14px;background:#e1f1e8;border:1px solid #9ccbb3"><strong>${esc(activation)}</strong></div><p>We’re getting the auction room ready, polishing the virtual gavel and lining up the goods. Keep an eye on the site so you’re ready when bidding opens.</p><p>And don’t keep the lekker finds to yourself—tell your friends to join the Whacky family too. A lively auction room is a better auction room.</p>${button("Browse upcoming auctions", `${SITE_URL}/auctions`)}<p>Welcome to the Whacky family!<br><strong>The Whacky Auctions team</strong></p>`);

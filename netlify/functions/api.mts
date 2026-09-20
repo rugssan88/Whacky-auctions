@@ -195,6 +195,32 @@ async function publicAuctions(userId?: string | null) {
   return out;
 }
 
+async function bidderActivationOffer(email: string) {
+  const signupRows = await db.sql`
+    SELECT id,promo_code,signup_rank FROM (
+      SELECT id,email,promo_code,ROW_NUMBER() OVER (ORDER BY created_at,id)::int signup_rank
+      FROM early_access_signups
+    ) ranked WHERE email=${email} LIMIT 1`;
+  const signup = signupRows[0];
+  if (!signup) return { signupRank: 0, promoCode: null, promoRank: 0, freeActivationEligible: false, freeActivationReason: null, amountCents: 1000 };
+  const signupRank = Number(signup.signup_rank || 0);
+  const promoCode = String(signup.promo_code || "").trim().toUpperCase() || null;
+  let promoRank = 0;
+  if (promoCode === "CLOUD9") {
+    const promoRows = await db.sql`
+      SELECT promo_rank FROM (
+        SELECT id,ROW_NUMBER() OVER (ORDER BY created_at,id)::int promo_rank
+        FROM early_access_signups
+        WHERE UPPER(COALESCE(promo_code,''))='CLOUD9'
+      ) ranked WHERE id=${signup.id} LIMIT 1`;
+    promoRank = Number(promoRows[0]?.promo_rank || 0);
+  }
+  const foundingFree = signupRank > 0 && signupRank <= 100;
+  const promoFree = promoCode === "CLOUD9" && promoRank > 0 && promoRank <= 20;
+  const freeActivationReason = foundingFree ? "founding-100" : promoFree ? "cloud9" : null;
+  const amountCents = freeActivationReason ? 0 : promoCode === "CLOUD9" ? 500 : 1000;
+  return { signupRank, promoCode, promoRank, freeActivationEligible: !!freeActivationReason, freeActivationReason, amountCents };
+}
 async function handle(req: Request) {
   await ensureBootstrapAdmin();
   const url = new URL(req.url);
@@ -290,39 +316,53 @@ async function handle(req: Request) {
     const lastName = clean(names.join(" "), 80);
     const email = clean(b.email, 320).toLowerCase();
     const mobile = clean(b.mobile, 40);
+    const requestedPromoCode = clean(b.promoCode, 50).trim().toUpperCase();
+    if (requestedPromoCode && requestedPromoCode !== "CLOUD9") return fail("Promo code not recognised. Check the code and try again.");
     if (!firstName || !lastName || !email.includes("@") || mobile.length < 8)
       return fail("Please enter your name and surname, email address and mobile number.");
     const existingUser = await db.sql`SELECT id FROM users WHERE email=${email} LIMIT 1`;
     if (existingUser.length) return fail("An account already exists for this email. Please sign in.", 409);
-    const existing = await db.sql`SELECT id,claimed_user_id FROM early_access_signups WHERE email=${email} LIMIT 1`;
+    const existing = await db.sql`SELECT id,claimed_user_id,promo_code FROM early_access_signups WHERE email=${email} LIMIT 1`;
     if (existing[0]?.claimed_user_id) return fail("Your Early Access account already exists. Please sign in.", 409);
+    if (existing.length && requestedPromoCode && String(existing[0].promo_code || "").trim().toUpperCase() !== requestedPromoCode)
+      return fail("This email is already registered. Promo codes can only be applied on the original signup.", 409);
     const signupId = existing[0]?.id || id();
+    const promoCode = existing.length ? (existing[0].promo_code || null) : (requestedPromoCode || null);
     const acceptedAt = new Date().toISOString();
     const accountToken = randomToken(24);
     const accountTokenHash = sha256(accountToken);
     if (!existing.length)
-      await db.sql`INSERT INTO early_access_signups(id,first_name,last_name,email,mobile,marketing_opt_in,accepted_privacy_at,ip_address,account_token_hash,account_token_expires_at)
-                   VALUES(${signupId},${firstName},${lastName},${email},${mobile},${!!b.marketingOptIn},${acceptedAt},${getClientIp(req)},${accountTokenHash},NOW()+INTERVAL '30 minutes')`;
+      await db.sql`INSERT INTO early_access_signups(id,first_name,last_name,email,mobile,marketing_opt_in,accepted_privacy_at,ip_address,account_token_hash,account_token_expires_at,promo_code)
+                   VALUES(${signupId},${firstName},${lastName},${email},${mobile},${!!b.marketingOptIn},${acceptedAt},${getClientIp(req)},${accountTokenHash},NOW()+INTERVAL '30 minutes',${promoCode})`;
     else
       await db.sql`UPDATE early_access_signups SET first_name=${firstName},last_name=${lastName},mobile=${mobile},marketing_opt_in=${!!b.marketingOptIn},accepted_privacy_at=${acceptedAt},ip_address=${getClientIp(req)},account_token_hash=${accountTokenHash},account_token_expires_at=NOW()+INTERVAL '30 minutes' WHERE id=${signupId}`;
-    const rankRows = await db.sql`SELECT COUNT(*)::int AS rank FROM early_access_signups WHERE created_at <= (SELECT created_at FROM early_access_signups WHERE id=${signupId})`;
-    const signupRank = Number(rankRows[0]?.rank || 0);
-    await audit(null, "early_access_signup", "early_access", signupId, { signupRank, freeActivationEligible: signupRank <= 100 }, req);
+    const offer = await bidderActivationOffer(email);
+    await audit(null, "early_access_signup", "early_access", signupId, { signupRank: offer.signupRank, promoCode: offer.promoCode, promoRank: offer.promoRank, freeActivationEligible: offer.freeActivationEligible, freeActivationReason: offer.freeActivationReason, activationAmountCents: offer.amountCents }, req);
     await safeSend({
       to: email,
       template: "early_access_welcome",
       eventKey: signupId,
-      message: signupEmail({ firstName, signupRank, freeActivationEligible: signupRank <= 100 }),
+      message: signupEmail({ firstName, signupRank: offer.signupRank, freeActivationEligible: offer.freeActivationEligible, freeActivationReason: offer.freeActivationReason, promoCode: offer.promoCode, activationAmountCents: offer.amountCents }),
     });
+    const message = offer.freeActivationEligible
+      ? offer.freeActivationReason === "cloud9"
+        ? "Your spot is saved — your CLOUD9 signup qualifies for free bidder activation."
+        : "Your spot is saved — you qualify for free bidder activation."
+      : offer.promoCode === "CLOUD9"
+        ? "Your spot is saved — CLOUD9 gives you R5 bidder activation instead of R10."
+        : "Your Early Access spot is saved.";
     return ok({
-      message: signupRank <= 100 ? "Your spot is saved — you qualify for free bidder activation." : "Your Early Access spot is saved.",
+      message,
       accountToken,
       email,
-      signupRank,
-      freeActivationEligible: signupRank <= 100,
+      signupRank: offer.signupRank,
+      promoCode: offer.promoCode,
+      promoRank: offer.promoRank,
+      amountCents: offer.amountCents,
+      freeActivationEligible: offer.freeActivationEligible,
+      freeActivationReason: offer.freeActivationReason,
     }, 201);
   }
-
   if (method === "POST" && parts[0] === "early-access" && parts[1] === "account") {
     const b = await req.json();
     const email = clean(b.email, 320).toLowerCase();
@@ -400,9 +440,8 @@ async function handle(req: Request) {
   if (method === "GET" && parts[0] === "me" && parts[1] === "verification") {
     const u = await requireUser(req);
     const latest = (await db.sql`SELECT status,amount_cents,paid_at,created_at FROM bidder_verification_payments WHERE user_id=${u.id} ORDER BY created_at DESC LIMIT 1`)[0] || null;
-    const rankRows = await db.sql`SELECT COUNT(*)::int AS rank FROM early_access_signups WHERE created_at <= (SELECT created_at FROM early_access_signups WHERE email=${u.email} LIMIT 1)`;
-    const signupRank = Number(rankRows[0]?.rank || 0);
-    return ok({ verified: !!u.verified, amountCents: signupRank > 0 && signupRank <= 100 ? 0 : 1000, freeActivationEligible: signupRank > 0 && signupRank <= 100, signupRank, latest });
+    const offer = await bidderActivationOffer(u.email);
+    return ok({ verified: !!u.verified, ...offer, latest });
   }
 
   if (method === "POST" && parts[0] === "me" && parts[1] === "verification" && parts[2] === "checkout") {
@@ -414,36 +453,36 @@ async function handle(req: Request) {
     const outstanding = await db.sql`SELECT 1 FROM orders WHERE user_id=${u.id} AND status='defaulted' AND COALESCE(default_fee_cents,0)>0 LIMIT 1`;
     if (outstanding.length) return fail("Your bidder account has an outstanding default charge. Please contact Whacky Auctions before re-verification.",403);
     await db.sql`UPDATE users SET id_number=${idNumber} WHERE id=${u.id}`;
-    const rankRows = await db.sql`SELECT COUNT(*)::int AS rank FROM early_access_signups WHERE created_at <= (SELECT created_at FROM early_access_signups WHERE email=${u.email} LIMIT 1)`;
-    const signupRank = Number(rankRows[0]?.rank || 0);
-    if (signupRank > 0 && signupRank <= 100) {
+    const offer = await bidderActivationOffer(u.email);
+    if (offer.freeActivationEligible) {
       await db.sql`UPDATE users SET verified=TRUE WHERE id=${u.id} AND suspended=FALSE`;
-      await db.sql`INSERT INTO notifications(id,user_id,type,message) VALUES(${id()},${u.id},'bidder_verified','Your free founding-member bidder activation is complete. You may bid when auctions open.')`;
-      await audit(u.id,"bidder_verification_waived","verification",u.id,{signupRank,amountCents:0},req);
+      const reasonText = offer.freeActivationReason === "cloud9" ? "CLOUD9 launch promotion" : "founding-member promotion";
+      await db.sql`INSERT INTO notifications(id,user_id,type,message) VALUES(${id()},${u.id},'bidder_verified',${`Your free ${reasonText} bidder activation is complete. You may bid when auctions open.`})`;
+      await audit(u.id,"bidder_verification_waived","verification",u.id,{signupRank:offer.signupRank,promoCode:offer.promoCode,promoRank:offer.promoRank,freeActivationReason:offer.freeActivationReason,amountCents:0},req);
       await safeSend({
         to: u.email,
         template: "bidder_verified",
         eventKey: `free:${u.id}`,
         message: bidderVerifiedEmail({ firstName: u.first_name, freeActivation: true }),
       });
-      return ok({ verified: true, freeActivation: true, amountCents: 0, message: "Your free bidder activation is complete." });
+      return ok({ verified: true, freeActivation: true, amountCents: 0, promoCode: offer.promoCode, freeActivationReason: offer.freeActivationReason, message: "Your free bidder activation is complete." });
     }
     const settings = await getSettings();
     if (!settings.payment_gateway_enabled) return fail("Yoco bidder verification is not available yet.",503);
     const verificationId=id();
-    await db.sql`INSERT INTO bidder_verification_payments(id,user_id,amount_cents,status) VALUES(${verificationId},${u.id},1000,'pending')`;
+    const activationAmountCents = offer.amountCents;
+    await db.sql`INSERT INTO bidder_verification_payments(id,user_id,amount_cents,status) VALUES(${verificationId},${u.id},${activationAmountCents},'pending')`;
     const base=new URL(req.url).origin;
     try {
-      const checkout=await createCheckout({orderId:verificationId,auctionId:"bidder-verification",userId:u.id,email:u.email,amountCents:1000,description:"Whacky Auctions bidder verification",returnUrl:`${base}/verify-bidder?verification=return`,cancelUrl:`${base}/verify-bidder?verification=cancelled`,notifyUrl:`${base}/api/payments/webhook`,purpose:"bidder-verification",verificationId});
+      const checkout=await createCheckout({orderId:verificationId,auctionId:"bidder-verification",userId:u.id,email:u.email,amountCents:activationAmountCents,description:"Whacky Auctions bidder verification",returnUrl:`${base}/verify-bidder?verification=return`,cancelUrl:`${base}/verify-bidder?verification=cancelled`,notifyUrl:`${base}/api/payments/webhook`,purpose:"bidder-verification",verificationId});
       await db.sql`UPDATE bidder_verification_payments SET payment_reference=${checkout.providerReference||null},updated_at=NOW() WHERE id=${verificationId}`;
-      await audit(u.id,"bidder_verification_checkout_started","verification",verificationId,{amountCents:1000},req);
-      return ok({redirectUrl:checkout.redirectUrl,amountCents:1000});
+      await audit(u.id,"bidder_verification_checkout_started","verification",verificationId,{amountCents:activationAmountCents,promoCode:offer.promoCode,promoRank:offer.promoRank},req);
+      return ok({redirectUrl:checkout.redirectUrl,amountCents:activationAmountCents,promoCode:offer.promoCode});
     } catch(e:any) {
       await db.sql`UPDATE bidder_verification_payments SET status='failed',updated_at=NOW() WHERE id=${verificationId}`;
       return fail(e?.message||"Bidder verification payment could not be started.",e?.status||503);
     }
   }
-
   if (method === "GET" && parts[0] === "auctions" && parts.length === 1)
     return ok({
       auctions: await publicAuctions(user?.id),
@@ -804,12 +843,12 @@ async function handle(req: Request) {
           await db.sql`SELECT * FROM bidder_verification_payments WHERE payment_reference=${String(checkoutId)} LIMIT 1`
         )[0];
         if (verification) {
-          if (Number(verification.amount_cents) !== amountCents || amountCents !== 1000)
-            return fail("Yoco payment amount does not match the R10 bidder-verification fee.",400,{code:"YOCO_VERIFICATION_AMOUNT_MISMATCH"});
+          if (Number(verification.amount_cents) !== amountCents || ![500,1000].includes(amountCents))
+            return fail("Yoco payment amount does not match the bidder-verification fee.",400,{code:"YOCO_VERIFICATION_AMOUNT_MISMATCH"});
           if (verification.status !== "paid") {
             await db.sql`UPDATE bidder_verification_payments SET status='paid',paid_at=COALESCE(paid_at,NOW()),updated_at=NOW() WHERE id=${verification.id}`;
             await db.sql`UPDATE users SET verified=TRUE WHERE id=${verification.user_id} AND suspended=FALSE`;
-            await db.sql`INSERT INTO notifications(id,user_id,type,message) VALUES(${id()},${verification.user_id},'bidder_verified','Your R10 bidder verification is complete. You may bid when auctions open.')`;
+            await db.sql`INSERT INTO notifications(id,user_id,type,message) VALUES(${id()},${verification.user_id},'bidder_verified',${`Your R${(amountCents / 100).toFixed(0)} bidder verification is complete. You may bid when auctions open.`})`;
             await audit(verification.user_id,"bidder_verification_paid","verification",verification.id,{provider:"yoco",eventId:event.id,checkoutId,amountCents},req);
             const verifiedUser = (await db.sql`SELECT email,first_name FROM users WHERE id=${verification.user_id} LIMIT 1`)[0];
             if (verifiedUser) await safeSend({
@@ -1001,6 +1040,21 @@ async function handle(req: Request) {
         await db.sql`SELECT id,email,first_name,last_name,mobile,id_number,role,verified,suspended,created_at,last_login_at FROM users ORDER BY created_at DESC`;
       return ok({ users: rows });
     }
+    if (method === "GET" && parts[1] === "referrals") {
+      const rows = await db.sql`
+        SELECT UPPER(e.promo_code) promo_code,
+          COUNT(*)::int registrations,
+          COUNT(e.claimed_user_id)::int accounts,
+          COUNT(*) FILTER (WHERE u.verified=TRUE AND u.suspended=FALSE)::int verified
+        FROM early_access_signups e
+        LEFT JOIN users u ON u.id=e.claimed_user_id
+        WHERE e.promo_code IS NOT NULL AND BTRIM(e.promo_code) <> ''
+        GROUP BY UPPER(e.promo_code)
+        ORDER BY registrations DESC,promo_code`;
+      return ok({
+        referrals: rows.map((row: any) => ({ promoCode: row.promo_code, registrations: Number(row.registrations || 0), accounts: Number(row.accounts || 0), verified: Number(row.verified || 0) })),
+      });
+    }
     if (method === "GET" && parts[1] === "founder-email-preview") {
       const rows = await db.sql`SELECT e.id signup_id,e.first_name,e.last_name,e.email,e.created_at,e.claimed_user_id,
         u.id user_id,u.id_number,u.verified,u.suspended,
@@ -1071,13 +1125,12 @@ async function handle(req: Request) {
       if (body.verified) {
         const verifiedUser = (await db.sql`SELECT email,first_name FROM users WHERE id=${parts[2]} AND role='bidder' LIMIT 1`)[0];
         if (verifiedUser) {
-          const rankRows = await db.sql`SELECT COUNT(*)::int AS rank FROM early_access_signups WHERE created_at <= (SELECT created_at FROM early_access_signups WHERE email=${verifiedUser.email} LIMIT 1)`;
-          const signupRank = Number(rankRows[0]?.rank || 0);
+          const offer = await bidderActivationOffer(verifiedUser.email);
           await safeSend({
             to: verifiedUser.email,
             template: "bidder_verified",
-            eventKey: `${signupRank > 0 && signupRank <= 100 ? "free" : "admin"}:${parts[2]}`,
-            message: bidderVerifiedEmail({ firstName: verifiedUser.first_name, freeActivation: signupRank > 0 && signupRank <= 100 }),
+            eventKey: `${offer.freeActivationEligible ? "free" : "admin"}:${parts[2]}`,
+            message: bidderVerifiedEmail({ firstName: verifiedUser.first_name, freeActivation: offer.freeActivationEligible }),
           });
         }
       }
@@ -1471,12 +1524,12 @@ async function handle(req: Request) {
       parts[2] === "early-access.csv"
     ) {
       const rows =
-        await db.sql`SELECT first_name,last_name,email,mobile,marketing_opt_in,accepted_privacy_at,created_at FROM early_access_signups ORDER BY created_at`;
+        await db.sql`SELECT first_name,last_name,email,mobile,promo_code,marketing_opt_in,accepted_privacy_at,created_at FROM early_access_signups ORDER BY created_at`;
       const csvEsc = (x: any) => `"${String(x ?? "").replaceAll('"', '""')}"`;
       const lines = [
-        "First name,Last name,Email,Mobile,Marketing opt-in,Privacy accepted at,Joined at",
+        "First name,Last name,Email,Mobile,Promo code,Marketing opt-in,Privacy accepted at,Joined at",
         ...rows.map((r: any) =>
-          [r.first_name,r.last_name,r.email,r.mobile,r.marketing_opt_in,r.accepted_privacy_at,r.created_at]
+          [r.first_name,r.last_name,r.email,r.mobile,r.promo_code,r.marketing_opt_in,r.accepted_privacy_at,r.created_at]
             .map(csvEsc)
             .join(","),
         ),
