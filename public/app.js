@@ -138,47 +138,43 @@ function bindHomePreviewRotation() {
   stopHomePreviewRotation();
   const grid = $(".home-preview-grid[data-preview-rotator]");
   if (!grid || PREVIEW_ITEMS.length <= 3) return;
-  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-  if (reducedMotion.matches) return;
   const rotation = {
-    nextIndex: 3,
-    slotIndex: 0,
+    nextStart: 3,
     paused: false,
-    touchPauseUntil: 0,
     rotateTimer: null,
     preloadTimer: null,
     onVisibilityChange: null,
   };
+  const nextIndexes = () => [0, 1, 2].map((offset) => (rotation.nextStart + offset) % PREVIEW_ITEMS.length);
   const preload = () => {
-    if (rotation.paused || document.hidden || Date.now() < rotation.touchPauseUntil) return;
-    PREVIEW_ITEMS[rotation.nextIndex].images.forEach((src) => {
-      const image = new Image();
-      image.src = optimisedImage(src, 520, 390);
+    if (rotation.paused || document.hidden) return;
+    nextIndexes().forEach((index) => {
+      PREVIEW_ITEMS[index].images.forEach((src) => {
+        const image = new Image();
+        image.src = optimisedImage(src, 520, 390);
+      });
     });
   };
   const schedule = () => {
     clearTimeout(rotation.rotateTimer);
     clearTimeout(rotation.preloadTimer);
-    if (rotation.paused || document.hidden || Date.now() < rotation.touchPauseUntil) return;
+    if (rotation.paused || document.hidden) return;
     rotation.preloadTimer = setTimeout(preload, 4000);
     rotation.rotateTimer = setTimeout(rotate, 5000);
   };
   const rotate = () => {
-    if (rotation.paused || document.hidden || Date.now() < rotation.touchPauseUntil) return schedule();
+    if (rotation.paused || document.hidden) return schedule();
     const slots = $$(".home-preview-link", grid);
-    const current = slots[rotation.slotIndex];
-    if (!current) return;
-    current.classList.add("is-leaving");
+    if (slots.length !== 3) return;
+    slots.forEach((slot) => slot.classList.add("is-leaving"));
     setTimeout(() => {
-      if (!current.isConnected) return;
-      const holder = document.createElement("div");
-      holder.innerHTML = homePreviewCard(PREVIEW_ITEMS[rotation.nextIndex], rotation.nextIndex);
-      const replacement = holder.firstElementChild;
-      replacement.classList.add("is-entering");
-      current.replaceWith(replacement);
-      requestAnimationFrame(() => replacement.classList.remove("is-entering"));
-      rotation.nextIndex = (rotation.nextIndex + 1) % PREVIEW_ITEMS.length;
-      rotation.slotIndex = (rotation.slotIndex + 1) % 3;
+      if (!grid.isConnected) return;
+      const indexes = nextIndexes();
+      grid.innerHTML = indexes.map((index) => homePreviewCard(PREVIEW_ITEMS[index], index)).join("");
+      const replacements = $$(".home-preview-link", grid);
+      replacements.forEach((replacement) => replacement.classList.add("is-entering"));
+      requestAnimationFrame(() => replacements.forEach((replacement) => replacement.classList.remove("is-entering")));
+      rotation.nextStart = (rotation.nextStart + 3) % PREVIEW_ITEMS.length;
       schedule();
     }, 180);
   };
@@ -199,10 +195,13 @@ function bindHomePreviewRotation() {
   });
   grid.addEventListener("pointerdown", (event) => {
     if (event.pointerType !== "touch") return;
-    rotation.touchPauseUntil = Date.now() + 10000;
-    clearTimeout(rotation.rotateTimer);
-    clearTimeout(rotation.preloadTimer);
-    setTimeout(schedule, 10000);
+    pause();
+  });
+  grid.addEventListener("pointerup", (event) => {
+    if (event.pointerType === "touch") resume();
+  });
+  grid.addEventListener("pointercancel", (event) => {
+    if (event.pointerType === "touch") resume();
   });
   rotation.onVisibilityChange = () => {
     if (document.hidden) pause();
