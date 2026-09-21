@@ -1,4 +1,4 @@
-const CACHE='whacky-v6-first-100-funnel-v8-seo-production-assets';
+const CACHE='whacky-v6-first-100-funnel-v9-rotating-previews';
 const APP_SHELL=['/','/index.html','/styles.min.css','/app.min.js','/manifest.webmanifest','/branding/whacky-auctions-logo.png','/icons/favicon-64.png','/icons/apple-touch-icon.png','/icons/icon-192.png','/icons/icon-512.png'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(APP_SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
