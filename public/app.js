@@ -123,6 +123,94 @@ function previewCard(item) {
     <div class="card-body"><div class="label">${esc(item.category)}</div><h3 class="card-title">${esc(item.title)}</h3><p class="preview-condition">${esc(item.condition)}</p><div class="preview-bid"><span>Bidding set to start at</span><strong>${randMoney(item.openingBidCents)}</strong></div><div class="preview-status">Coming to Whacky · Not open for bidding</div></div>
   </article>`;
 }
+function homePreviewCard(item, index) {
+  return `<a class="home-preview-link" href="/auctions" data-link data-preview-index="${index}" aria-label="View all auction previews, including ${esc(item.title)}">${previewCard(item)}</a>`;
+}
+let homePreviewRotation = null;
+function stopHomePreviewRotation() {
+  if (!homePreviewRotation) return;
+  clearTimeout(homePreviewRotation.rotateTimer);
+  clearTimeout(homePreviewRotation.preloadTimer);
+  document.removeEventListener("visibilitychange", homePreviewRotation.onVisibilityChange);
+  homePreviewRotation = null;
+}
+function bindHomePreviewRotation() {
+  stopHomePreviewRotation();
+  const grid = $(".home-preview-grid[data-preview-rotator]");
+  if (!grid || PREVIEW_ITEMS.length <= 3) return;
+  const rotation = {
+    nextStart: 3,
+    paused: false,
+    rotateTimer: null,
+    preloadTimer: null,
+    onVisibilityChange: null,
+  };
+  const nextIndexes = () => [0, 1, 2].map((offset) => (rotation.nextStart + offset) % PREVIEW_ITEMS.length);
+  const preload = () => {
+    if (rotation.paused || document.hidden) return;
+    nextIndexes().forEach((index) => {
+      PREVIEW_ITEMS[index].images.forEach((src) => {
+        const image = new Image();
+        image.src = optimisedImage(src, 520, 390);
+      });
+    });
+  };
+  const schedule = () => {
+    clearTimeout(rotation.rotateTimer);
+    clearTimeout(rotation.preloadTimer);
+    if (rotation.paused || document.hidden) return;
+    rotation.preloadTimer = setTimeout(preload, 4000);
+    rotation.rotateTimer = setTimeout(rotate, 5000);
+  };
+  const rotate = () => {
+    if (rotation.paused || document.hidden) return schedule();
+    const slots = $$(".home-preview-link", grid);
+    if (slots.length !== 3) return;
+    slots.forEach((slot) => slot.classList.add("is-leaving"));
+    setTimeout(() => {
+      if (!grid.isConnected) return;
+      const indexes = nextIndexes();
+      grid.innerHTML = indexes.map((index) => homePreviewCard(PREVIEW_ITEMS[index], index)).join("");
+      const replacements = $$(".home-preview-link", grid);
+      replacements.forEach((replacement) => replacement.classList.add("is-entering"));
+      requestAnimationFrame(() => replacements.forEach((replacement) => replacement.classList.remove("is-entering")));
+      rotation.nextStart = (rotation.nextStart + 3) % PREVIEW_ITEMS.length;
+      schedule();
+    }, 180);
+  };
+  const pause = () => {
+    rotation.paused = true;
+    clearTimeout(rotation.rotateTimer);
+    clearTimeout(rotation.preloadTimer);
+  };
+  const resume = () => {
+    rotation.paused = false;
+    schedule();
+  };
+  grid.addEventListener("mouseenter", pause);
+  grid.addEventListener("mouseleave", resume);
+  grid.addEventListener("focusin", pause);
+  grid.addEventListener("focusout", (event) => {
+    if (!grid.contains(event.relatedTarget)) resume();
+  });
+  grid.addEventListener("pointerdown", (event) => {
+    if (event.pointerType !== "touch") return;
+    pause();
+  });
+  grid.addEventListener("pointerup", (event) => {
+    if (event.pointerType === "touch") resume();
+  });
+  grid.addEventListener("pointercancel", (event) => {
+    if (event.pointerType === "touch") resume();
+  });
+  rotation.onVisibilityChange = () => {
+    if (document.hidden) pause();
+    else resume();
+  };
+  document.addEventListener("visibilitychange", rotation.onVisibilityChange);
+  homePreviewRotation = rotation;
+  schedule();
+}
 function toast(msg, error = false) {
   const t = $("#toast");
   t.textContent = msg;
@@ -341,7 +429,7 @@ async function home() {
   return `${header()}<main>
 <section class="hero professional-hero"><div class="container hero-grid"><div><span class="eyebrow">🇿🇦 Online auctions, made properly for Mzansi</span><h1>Good finds.<br><span class="grad">Fair bidding. No nonsense.</span></h1><p>Browse useful, unusual and properly described goods with real photos, transparent condition notes and a fair two-minute soft close.</p><div class="hero-actions"><a class="btn btn-primary" href="/auctions" data-link>Browse auctions</a><a class="btn btn-secondary" href="/how-it-works" data-link>See how it works</a></div><div class="hero-proof"><span>✓ Honest condition notes</span><span>✓ Secure Yoco payments</span><span>✓ South African support</span></div></div><aside class="launch-card"><div class="fair-icon"><img src="/branding/early-bird.png" alt="Early bird catching a worm" /></div><div><div class="label">Whacky, not dodgy</div><h3>Auction excitement without the funny business.</h3><div class="mini">Clear rules, sensible opening bids and enough time to answer a late bid before the hammer drops.</div></div><a class="softclose home-card-link" href="/join" data-link><b>Join early access</b><div class="mini">Get launch alerts and first looks.</div></a></aside></div></section>
 <section class="how-strip" aria-label="Whacky Auctions promises"><div class="container steps"><div><span>01</span><b>Real photos</b><small>See the actual item you are bidding on.</small></div><div><span>02</span><b>Straight-up notes</b><small>Condition disclosed without sales talk.</small></div><div><span>03</span><b>Fair soft close</b><small>No last-second sniping nonsense.</small></div></div></section>
-<section class="section"><div class="container"><div class="section-head"><div><div class="label">Featured</div><h2>${featured.length ? "Auctions worth a look" : "A taste of what’s coming"}</h2></div><a class="text-link" href="/auctions" data-link>View all auctions →</a></div>${featured.length ? `<div class="grid">${featured.map(card).join("")}</div>` : `<div class="grid preview-grid home-preview-grid">${PREVIEW_ITEMS.slice(0, 3).map(previewCard).join("")}</div>`}</div></section>
+<section class="section"><div class="container"><div class="section-head"><div><div class="label">Featured</div><h2>${featured.length ? "Auctions worth a look" : "A taste of what’s coming"}</h2></div><a class="text-link" href="/auctions" data-link>View all auctions →</a></div>${featured.length ? `<div class="grid">${featured.map(card).join("")}</div>` : `<div class="grid preview-grid home-preview-grid" data-preview-rotator aria-live="off">${PREVIEW_ITEMS.slice(0, 3).map(homePreviewCard).join("")}</div>`}</div></section>
 <section class="section home-trust"><div class="container trust-grid"><div><div class="label">Built for trust</div><h2>Know the rules before you bid.</h2><p>We separate the exciting part from the important part. Payments, collection, condition and soft-close rules are easy to find before you commit.</p><a class="btn btn-secondary" href="/legal" data-link>Open legal centre</a></div><div class="panel trust-list"><div><b>Clear costs</b><span>Opening bids, increments and buyer premiums are shown upfront.</span></div><div><b>Protected bidding time</b><span>Late bids restore the full closing window.</span></div><div><b>Real support</b><span>Email the Whacky Auctions team directly when you need help.</span></div></div></div></section>
 <section class="section final-cta"><div class="container cta-panel"><div><div class="label">Ready when you are</div><h2>Come have a look around.</h2><p>Browse the goods now or join early access for launch news.</p></div><div class="hero-actions"><a class="btn btn-primary" href="/auctions" data-link>See auctions</a><a class="btn btn-secondary" href="/join" data-link>Join early access</a></div></div></section></main>${footer()}`;
 }
@@ -990,6 +1078,7 @@ function installUI() {
       }));
 }
 async function bind() {
+  bindHomePreviewRotation();
   bindEarlyAccess();
   const smtpTestBtn = $("#smtpTestBtn");
   if (smtpTestBtn)
