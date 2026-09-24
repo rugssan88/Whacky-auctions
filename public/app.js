@@ -1618,7 +1618,6 @@ async function render() {
   app.innerHTML = html;
   applySeo(r);
   await bind();
-  recordPageView();
   tick();
 }
 function tick() {

@@ -222,24 +222,24 @@ async function bidderActivationOffer(email: string) {
   return { signupRank, promoCode, promoRank, freeActivationEligible: !!freeActivationReason, freeActivationReason, amountCents };
 }
 async function handle(req: Request) {
-  await ensureBootstrapAdmin();
   const url = new URL(req.url);
   const path = url.pathname.replace(/^\/api\/?/, "");
   const parts = path.split("/").filter(Boolean).map(decodeURIComponent);
   const method = req.method.toUpperCase();
-  const user = await getUser(req);
 
+  // Health checks must never wake the database.
   if (method === "GET" && parts[0] === "health")
     return ok({ service: "Whacky Auctions", time: new Date().toISOString() });
+
+  const user = await getUser(req);
   if (method === "POST" && parts[0] === "page-view") {
     const body = await req.json().catch(() => ({}));
     const rawPath = clean(body.path, 300).split(/[?#]/)[0] || "/";
     const viewPath = rawPath.startsWith("/") ? rawPath : `/${rawPath}`;
     if (viewPath.startsWith("/admin") || viewPath.startsWith("/api/"))
       return ok({ recorded: false });
-    await db.sql`INSERT INTO audit_log(id,actor_user_id,action,entity_type,entity_id,detail,ip_address)
-                 VALUES(${id()},NULL,'page_view','page',${viewPath},${JSON.stringify({ path: viewPath })}::jsonb,NULL)`;
-    return ok({ recorded: true }, 201);
+    // Netlify already counts requests. Avoid a database write for every visitor or bot.
+    return ok({ recorded: false, reason: "database-cost-optimisation" });
   }
   if (method === "POST" && parts[0] === "funnel-event") {
     const body = await req.json().catch(() => ({}));
