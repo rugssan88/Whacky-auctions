@@ -133,7 +133,7 @@ const PREVIEW_ITEMS = [
 ];
 function previewCard(item) {
   return `<article class="card preview-card">
-    <div class="preview-images">${item.images.map((src, i) => `<img loading="lazy" src="${esc(optimisedImage(src, 520, 390))}" alt="${esc(item.title)} — view ${i + 1}">`).join("")}<span class="chip preview-chip">Sneak peek</span></div>
+    <div class="preview-images preview-images-${item.images.length}">${item.images.map((src, i) => `<img loading="lazy" src="${esc(optimisedImage(src, 520, 390))}" alt="${esc(item.title)} — view ${i + 1}">`).join("")}<span class="chip preview-chip">Sneak peek</span></div>
     <div class="card-body"><div class="label">${esc(item.category)}</div><h3 class="card-title">${esc(item.title)}</h3><p class="preview-condition">${esc(item.condition)}</p><div class="preview-bid"><span>Bidding set to start at</span><strong>${randMoney(item.openingBidCents)}</strong></div><div class="preview-status">Coming to Whacky · Not open for bidding</div></div>
   </article>`;
 }
