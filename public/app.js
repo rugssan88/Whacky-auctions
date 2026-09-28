@@ -40,6 +40,20 @@ const optimisedImage = (url, width, height = 0, fit = "cover") => {
 };
 const PREVIEW_ITEMS = [
   {
+    title: "Ryobi & Einhell angle grinder pair",
+    category: "Tools & workshop",
+    condition: "Two corded angle grinders: Ryobi with disc and side handle, plus Einhell as pictured. Used with dust, scuffs and cosmetic wear; untested.",
+    openingBidCents: 25000,
+    images: ["/previews/angle-grinders-1.webp"],
+  },
+  {
+    title: "Assorted floor & wall tile lot",
+    category: "Building & renovation",
+    condition: "Assorted leftover tiles in mixed sizes, finishes and quantities. Stored surplus with dust, marks and minor edge wear; sold together as pictured.",
+    openingBidCents: 30000,
+    images: ["/previews/mixed-tiles-1.webp", "/previews/mixed-tiles-2.webp", "/previews/mixed-tiles-3.webp"],
+  },
+  {
     title: "Afrikaans dictionary & study book bundle",
     category: "Books & education",
     condition: "Four Afrikaans-English dictionaries and study/reference books. Well used, with visible cover, edge and page wear; titles and editions as pictured.",
