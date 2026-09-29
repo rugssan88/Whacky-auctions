@@ -1,3 +1,8 @@
+window.dataLayer = window.dataLayer || [];
+window.gtag = window.gtag || function gtag(){ window.dataLayer.push(arguments); };
+window.gtag("js", new Date());
+window.gtag("config", "AW-16634542923", { send_page_view: false });
+
 const state = {
   me: null,
   settings: {},
@@ -252,6 +257,11 @@ function recordPageView() {
   const path = location.pathname || "/";
   if (path.startsWith("/admin") || state.lastTrackedPath === path) return;
   state.lastTrackedPath = path;
+  window.gtag?.("event", "page_view", {
+    page_path: path,
+    page_location: location.href,
+    page_title: document.title,
+  });
   const body = JSON.stringify({ path });
   if (navigator.sendBeacon) navigator.sendBeacon("/api/page-view", new Blob([body], { type: "application/json" }));
   else fetch("/api/page-view", { method: "POST", headers: { "content-type": "application/json" }, body, keepalive: true }).catch(() => {});
@@ -1631,6 +1641,7 @@ async function render() {
   }
   app.innerHTML = html;
   applySeo(r);
+  recordPageView();
   await bind();
   tick();
 }
