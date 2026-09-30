@@ -1,8 +1,3 @@
-window.dataLayer = window.dataLayer || [];
-window.gtag = window.gtag || function gtag(){ window.dataLayer.push(arguments); };
-window.gtag("js", new Date());
-window.gtag("config", "AW-16634542923", { send_page_view: false });
-
 const state = {
   me: null,
   settings: {},
