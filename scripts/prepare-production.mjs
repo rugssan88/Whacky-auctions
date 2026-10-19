@@ -78,17 +78,36 @@ const pages = {
 };
 
 const esc = (value) => value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+const routeDetails = {
+  auctions: ["Auction previews are a first look at items being prepared for sale. A preview is not an open auction: check the individual lot status before attempting to bid. Review the photographs and condition notes, and contact the team if you need more information about an item."],
+  "how-it-works": ["Start by browsing previews or joining early access. Early-access registration does not activate bidding. Bidder verification is a separate step in your account when you choose to take part.", "Before placing a bid, read the lot-specific rules, buyer costs and collection arrangements. A winning bidder must follow the payment deadline and instructions shown for that auction. Courier arrangements and costs should be checked before bidding."],
+  about: ["The platform focuses on second-hand goods and unusual finds, with an emphasis on showing the actual item rather than stock photography. Condition notes distinguish tested items from untested or incomplete goods.", "Whacky Auctions is an online business based in Florida, Gauteng. Browse the auction previews to see the range of goods, or contact the team with questions before deciding whether to register."],
+  contact: ["For an item enquiry, include the item name and the detail you want confirmed. For account or payment support, describe the problem without sending passwords, full card details or other sensitive credentials by email.", "Collection and viewing arrangements depend on the individual lot. Please confirm arrangements with the team before travelling."],
+  join: ["Early access is for people who want launch updates and a first look at upcoming items. Joining does not commit you to buying an item or placing a bid.", "Browse the previews and read how bidding works while you wait for launch updates. Auction availability and bidder activation are separate from joining the early-access list."],
+  legal: ["Check both the platform terms and the rules attached to an individual auction. Lot-specific information covers the item condition, opening bid, closing time, buyer costs and collection arrangements.", "Privacy enquiries can be sent to the team using the Contact page. Read the privacy policy for information about personal data before registering."],
+  install: ["On Android, open the website in Chrome and use the browser menu to look for Install app or Add to Home screen. On iPhone or iPad, use Safari's Share menu and choose Add to Home Screen.", "Installation is optional: the website also works in your browser. An installed shortcut does not change your account status or activate bidding."],
+};
 for (const [slug, page] of Object.entries(pages)) {
   const links = page.links.map(([href, label]) => `<a href="${esc(href)}">${esc(label)}</a>`).join(" · ");
-  const supportingCopy = `Whacky Auctions uses real item photographs, straightforward condition notes and transparent pricing information. Before bidding, buyers can review the lot description, opening bid, bidding increment, buyer costs, closing time, payment deadline and collection arrangements. Working, untested, worn or incomplete goods are identified plainly so bidders can make an informed decision. The platform is based in Florida, Gauteng and operates for South African buyers in rand.\n+
-Late bidding is handled through a fair soft close. When a valid bid arrives during the final two minutes, the closing window returns to a full two minutes so other bidders have time to respond. Published auction rules remain available throughout the process, and customers can contact the team before committing if an item description or collection requirement needs clarification.\n+
-Early-access registration and bidder activation are separate steps. Visitors can join for previews and launch news without activating bidding immediately. People who decide to bid can complete the separate verification process from their private account. This keeps browsing simple while protecting the integrity of live auctions.`;
+  const supportingCopy = routeDetails[slug].join("\n\n");
   const fallback = `<div id="app"><header class="topbar"><div class="container nav"><a class="brand" href="/"><span class="brandmark">W</span><span>Whacky Auctions</span></a><nav class="navlinks" aria-label="Primary navigation"><a href="/">Home</a><a href="/auctions">Auctions</a><a href="/how-it-works">How it works</a><a href="/about">About</a><a href="/contact">Contact</a></nav></div></header><main><section class="page-hero"><div class="container"><span class="eyebrow">${esc(page.eyebrow)}</span><h1>${esc(page.heading)}</h1><p>${esc(page.copy)}</p>${supportingCopy.split("\n\n").map((paragraph) => `<p>${esc(paragraph)}</p>`).join("")}<p>${links}</p></div></section></main></div>`;
-  const html = template
+  const cleanFallback = fallback.replace(supportingCopy.split("\n\n").map((paragraph) => `<p>${esc(paragraph)}</p>`).join(""), routeDetails[slug].map((paragraph) => `<p>${esc(paragraph)}</p>`).join(""));
+  const canonical = `https://www.whackyauctions.co.za/${slug}`;
+  let html = template
     .replace(/<title>[^<]*<\/title>/, `<title>${esc(page.title)}</title>`)
     .replace(/<meta name="description" content="[^"]*" \/>/, `<meta name="description" content="${esc(page.description)}" />`)
     .replace(/<link rel="canonical" href="[^"]*" \/>/, `<link rel="canonical" href="https://www.whackyauctions.co.za/${slug}" />`)
-    .replace(/<div id="app">[\s\S]*?<\/div>\s*<div id="toast"/, `${fallback}\n  <div id="toast"`);
+    .replace(/<div id="app">[\s\S]*?<\/div>\s*<div id="toast"/, `${cleanFallback}\n  <div id="toast"`);
+  for (const [attribute, key, value] of [
+    ["property", "og:title", page.title], ["property", "og:description", page.description],
+    ["property", "og:url", canonical], ["name", "twitter:title", page.title],
+    ["name", "twitter:description", page.description],
+  ]) {
+    html = html.replace(new RegExp(`<meta ${attribute}="${key}" content="[^"]*" \\/>`), `<meta ${attribute}="${key}" content="${esc(value)}" />`);
+  }
+  // Keep route identity available without JavaScript; preserve the Google tag verbatim.
+  const schema = { "@context": "https://schema.org", "@type": slug === "about" ? "AboutPage" : slug === "contact" ? "ContactPage" : "WebPage", "@id": `${canonical}#webpage`, url: canonical, name: page.title, description: page.description, isPartOf: { "@id": "https://www.whackyauctions.co.za/#website" } };
+  html = html.replace("</head>", `<script type="application/ld+json">${JSON.stringify(schema).replaceAll("<", "\\u003c")}</script>\n</head>`);
   const dir = path.join(publicDir, slug);
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, "index.html"), html);

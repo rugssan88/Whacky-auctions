@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "netlify dev",
-    "build": "node scripts/build-check.mjs && node scripts/quick-list-check.mjs && node scripts/bidder-flow-check.mjs && node scripts/email-flow-check.mjs && node scripts/prepare-production.mjs"
+    "build": "node scripts/build-check.mjs && node scripts/quick-list-check.mjs && node scripts/bidder-flow-check.mjs && node scripts/email-flow-check.mjs && node scripts/prepare-production.mjs && node scripts/seo-check.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "latest",
